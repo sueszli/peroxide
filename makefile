@@ -1,11 +1,11 @@
-.PHONY: up # pull and push changes
+.PHONY: build
+build:
+	cargo install wasm-pack
+	wasm-pack build --target web
+
+.PHONY: up
 up:
 	git pull
 	git add .
 	if [ -z "$(msg)" ]; then git commit -m "up"; else git commit -m "$(msg)"; fi
 	git push
-
-.PHONY: help # generate help message
-help:
-	@echo "Usage: make [target]\n"
-	@grep '^.PHONY: .* #' makefile | sed 's/\.PHONY: \(.*\) # \(.*\)/\1	\2/' | expand -t20

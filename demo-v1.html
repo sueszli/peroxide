@@ -24,7 +24,6 @@
         <div>
             <label for="myId">Your ID:</label>
             <textarea id="myId" readonly></textarea>
-            <button id="copyBtn">Copy ID</button>
             <button id="createOfferBtn">Create Offer</button>
         </div>
         <div>
@@ -154,16 +153,6 @@
             addMsg(msg, 'sent');
             el.messageInput.value = '';
         }
-        
-        // Event listeners
-        document.getElementById('copyBtn').addEventListener('click', () => {
-            navigator.clipboard.writeText(el.myId.value)
-                .then(() => {
-                    const btn = document.getElementById('copyBtn');
-                    btn.textContent = 'Copied!';
-                    setTimeout(() => btn.textContent = 'Copy ID', 1500);
-                });
-        });
         
         document.getElementById('createOfferBtn').addEventListener('click', createOffer);
         document.getElementById('connectBtn').addEventListener('click', connect);

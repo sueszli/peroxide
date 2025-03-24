@@ -8,10 +8,7 @@ textarea { width: 100%; height: 3rem; }
 #chatBox { height: 200px; overflow-y: auto; border: 1px solid; }
 "#;
 
-// array
-const ICE_SERVERS: [&str; 1] = [
-    "stun:stun.l.google.com:19302",
-];
+const ICE_SERVERS: [&str; 1] = [ "stun:stun.l.google.com:19302", ];
 
 struct WebRtcState {
     pc: web_sys::RtcPeerConnection,

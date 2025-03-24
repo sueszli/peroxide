@@ -8,7 +8,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
+futures = "0.3.31"
 js-sys = "0.3.77"
+serde = { version = "1.0.219", features = ["derive"] }
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
-web-sys = { version = "0.3.77", features = ["Window", "Document", "Element", "HtmlButtonElement", "HtmlDivElement", "HtmlInputElement", "HtmlTextAreaElement", "MessageEvent", "RtcConfiguration", "RtcDataChannel", "RtcDataChannelEvent", "RtcIceCandidate", "RtcPeerConnection", "RtcPeerConnectionIceEvent", "RtcSessionDescriptionInit", "MouseEvent" ] }
+web-sys = { version = "0.3.77", features = ["Window", "Document", "Element", "HtmlButtonElement", "HtmlDivElement", "HtmlInputElement", "HtmlTextAreaElement", "MessageEvent", "RtcConfiguration", "RtcDataChannel", "RtcDataChannelEvent", "RtcIceCandidate", "RtcPeerConnection", "RtcPeerConnectionIceEvent", "RtcSessionDescriptionInit", "MouseEvent", "HtmlElement", "Node", "HtmlHeadElement" ] }

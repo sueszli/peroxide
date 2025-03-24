@@ -1,11 +1,28 @@
 use wasm_bindgen::prelude::*;
 use web_sys::{Element, Event};
 
+pub fn insert_style(string: &str) {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let head = document.head().unwrap();
+
+    let style = document.create_element("style").unwrap();
+    style.set_text_content(Some(string));
+    head.append_child(&style).unwrap();
+}
+
+pub fn insert_html(string: &str) {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let body = document.body().unwrap();
+    body.set_inner_html(string);
+}
+
 // 
 // debug
 // 
 
-pub fn show_resize() {
+pub fn display_resize() {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let body = document.body().unwrap();
@@ -27,7 +44,7 @@ pub fn show_resize() {
     callback.forget(); // don't drop
 }
 
-pub fn show_mousemove() {
+pub fn display_mousemove() {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let body = document.body().unwrap();

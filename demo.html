@@ -90,11 +90,7 @@
         
         // Initialize peer connection with STUN servers for NAT traversal
         function initPeerConnection() {
-            const config = {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' }
-                ]
-            };
+            const config = { iceServers: [ { urls: 'stun:stun.l.google.com:19302' } ] };
             
             peerConnection = new RTCPeerConnection(config);
             

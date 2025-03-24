@@ -13,7 +13,7 @@ fn mount_window_size_listener(document: &web_sys::Document) -> Result<(), JsValu
         Ok(())
     }
 
-    update_dimensions(&elem)?; // initial update
+    update_dimensions(&elem)?;
 
     let winsize_listener = Closure::<dyn FnMut(Event)>::new(move |_| {
         update_dimensions(&elem).unwrap_throw();
@@ -31,18 +31,12 @@ fn mount_mousemove_listener(document: &web_sys::Document) -> Result<(), JsValue>
     let elem = document.create_element("div")?;
     document.body().unwrap().append_child(&elem)?;
 
-    // fn update_mouse_position(elem: &Element, event: &web_sys::MouseEvent) -> Result<(), JsValue> {
-    //     let x = event.client_x();
-    //     let y = event.client_y();
-    //     elem.set_text_content(Some(&format!("mouse position: {:.0} x {:.0}", x, y)));
-    //     Ok(())
-    // }
-
-    let mousemove_listener = Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |event| {
-        let x = event.client_x();
-        let y = event.client_y();
-        elem.set_text_content(Some(&format!("mouse position: {:.0} x {:.0}", x, y)));
-    });
+    let mousemove_listener =
+        Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |event: web_sys::MouseEvent| {
+            let x = event.client_x();
+            let y = event.client_y();
+            elem.set_text_content(Some(&format!("mouse position: {:.0} x {:.0}", x, y)));
+        });
     web_sys::window()
         .unwrap()
         .add_event_listener_with_callback(
@@ -61,7 +55,7 @@ pub fn run() -> Result<(), JsValue> {
 
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
-    let body = document.body().unwrap();
+    let _body = document.body().unwrap();
 
     mount_window_size_listener(&document)?;
     mount_mousemove_listener(&document)?;

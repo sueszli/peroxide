@@ -1,5 +1,6 @@
+mod utils;
+
 use wasm_bindgen::prelude::*;
-use web_sys::{Element, Event};
 
 #[wasm_bindgen(start)]
 pub fn run() -> Result<(), JsValue> {
@@ -8,6 +9,9 @@ pub fn run() -> Result<(), JsValue> {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let body = document.body().unwrap();
-    
+
+    utils::mount_mousemove_listener(&document);
+    utils::mount_window_size_listener(&document);
+
     Ok(())
 }

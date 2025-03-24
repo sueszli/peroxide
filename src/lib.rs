@@ -31,15 +31,17 @@ fn mount_mousemove_listener(document: &web_sys::Document) -> Result<(), JsValue>
     let elem = document.create_element("div")?;
     document.body().unwrap().append_child(&elem)?;
 
-    fn update_mouse_position(elem: &Element, event: &web_sys::MouseEvent) -> Result<(), JsValue> {
+    // fn update_mouse_position(elem: &Element, event: &web_sys::MouseEvent) -> Result<(), JsValue> {
+    //     let x = event.client_x();
+    //     let y = event.client_y();
+    //     elem.set_text_content(Some(&format!("mouse position: {:.0} x {:.0}", x, y)));
+    //     Ok(())
+    // }
+
+    let mousemove_listener = Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |event| {
         let x = event.client_x();
         let y = event.client_y();
         elem.set_text_content(Some(&format!("mouse position: {:.0} x {:.0}", x, y)));
-        Ok(())
-    }
-
-    let mousemove_listener = Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |event| {
-        update_mouse_position(&elem, &event).unwrap_throw();
     });
     web_sys::window()
         .unwrap()
@@ -48,7 +50,7 @@ fn mount_mousemove_listener(document: &web_sys::Document) -> Result<(), JsValue>
             mousemove_listener.as_ref().unchecked_ref(),
         )?;
 
-    mousemove_listener.forget(); // don't drop
+    mousemove_listener.forget();
 
     Ok(())
 }

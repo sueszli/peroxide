@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P WebRTC Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        #chatBox {
+            height: 300px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px 0;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 5px;
+        }
+        .received {
+            background-color: #f1f1f1;
+        }
+        .sent {
+            background-color: #d4edda;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>P2P Chat</h1>
+        
+        <p>Share your ID with the other person, then enter their ID to connect.</p>
+        
+        <div>
+            <label for="myId">Your ID: </label>
+            <input type="text" id="myId" readonly>
+            <button id="copyBtn">Copy ID</button>
+        </div>
+        <div>
+            <label for="peerId">Peer ID: </label>
+            <input type="text" id="peerId" placeholder="Enter peer ID here">
+            <button id="connectBtn">Connect</button>
+        </div>
+        <div id="status"></div>
+        
+        <h2>Chat</h2>
+        <div id="chatBox"></div>
+        <div>
+            <input type="text" id="messageInput" placeholder="Type your message..." disabled>
+            <button id="sendBtn" disabled>Send</button>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script>
+        const myIdElement = document.getElementById('myId');
+        const copyBtn = document.getElementById('copyBtn');
+        const peerIdElement = document.getElementById('peerId');
+        const connectBtn = document.getElementById('connectBtn');
+        const status = document.getElementById('status');
+        const chatBox = document.getElementById('chatBox');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        
+        let peer;
+        let connection;
+        
+        function init() {
+            // Create a new Peer with random ID
+            peer = new Peer();
+            
+            peer.on('open', (id) => {
+                myIdElement.value = id;
+                status.textContent = 'Ready to connect';
+                status.style.color = 'green';
+            });
+            
+            peer.on('connection', (conn) => {
+                connection = conn;
+                setupConnection();
+                status.textContent = 'Connected!';
+            });
+            
+            peer.on('error', (err) => {
+                status.textContent = 'Error: ' + err;
+                status.style.color = 'red';
+            });
+        }
+        
+        function setupConnection() {
+            connection.on('open', () => {
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                addMessage('Connected to peer!', 'system');
+            });
+            
+            connection.on('data', (data) => {
+                addMessage(data, 'received');
+            });
+            
+            connection.on('close', () => {
+                messageInput.disabled = true;
+                sendBtn.disabled = true;
+                status.textContent = 'Connection closed';
+                connection = null;
+            });
+        }
+        
+        function connectToPeer() {
+            const peerId = peerIdElement.value.trim();
+            if (!peerId) {
+                status.textContent = 'Please enter a peer ID';
+                status.style.color = 'red';
+                return;
+            }
+            
+            status.textContent = 'Connecting...';
+            connection = peer.connect(peerId);
+            setupConnection();
+        }
+        
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || !connection) return;
+            
+            connection.send(message);
+            addMessage(message, 'sent');
+            messageInput.value = '';
+        }
+        
+        function addMessage(message, type) {
+            const el = document.createElement('div');
+            el.classList.add('message');
+            
+            if (type === 'sent') {
+                el.classList.add('sent');
+                el.textContent = 'You: ' + message;
+            } else if (type === 'received') {
+                el.classList.add('received');
+                el.textContent = 'Peer: ' + message;
+            } else {
+                el.style.textAlign = 'center';
+                el.style.fontStyle = 'italic';
+                el.textContent = message;
+            }
+            
+            chatBox.appendChild(el);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+        
+        // copy ID to clipboard
+        copyBtn.addEventListener('click', () => {
+            myIdElement.select();
+            document.execCommand('copy');
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => copyBtn.textContent = 'Copy ID', 1500);
+        });
+        
+        // event listeners
+        connectBtn.addEventListener('click', connectToPeer);
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        // initialize on page load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

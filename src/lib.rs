@@ -17,16 +17,11 @@ fn bare_bones() {
     let js: JsValue = 4.into();
     console::log_2(&"Logging arbitrary values looks like".into(), &js);
 
-    console_log!("Hello {}!", "world");
-}
-
-fn using_a_macro() {
-    console_log!("Let's print some numbers...");
     console_log!("1 + 3 = {}", 1 + 3);
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(start)]
 pub fn run() {
+    // called on initial load
     bare_bones();
-    using_a_macro();
 }

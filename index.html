@@ -9,8 +9,12 @@
 </body>
 
 <script type="module">
-import init, { greet } from "./pkg/peroxide.js";
-init().then(() => { greet("peroxide world!"); });
+// import init, { greet } from "./pkg/peroxide.js";
+// init().then(() => { greet("peroxide world!"); });
+
+
+import init, { run } from "./pkg/peroxide.js";
+init().then(() => { run(); });
 </script>
 
 </html>

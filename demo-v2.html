@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P WebRTC Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        #chatBox {
+            height: 300px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px 0;
+        }
+        textarea {
+            width: 100%;
+            height: 60px;
+            padding: 8px;
+            margin: 5px 0;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 5px;
+        }
+        .received {
+            background-color: #f1f1f1;
+        }
+        .sent {
+            background-color: #d4edda;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>P2P Chat</h1>
+        
+        <p>Share your ID with the other person, then enter their ID to connect.</p>
+        
+        <div>
+            <label for="myId">Your ID: </label>
+            <textarea id="myId" readonly></textarea>
+            <button id="copyBtn">Copy ID</button>
+            <button id="createOfferBtn">Create Offer</button>
+        </div>
+        <div>
+            <label for="peerId">Peer ID: </label>
+            <textarea id="peerId" placeholder="Enter peer ID here"></textarea>
+            <button id="connectBtn">Connect</button>
+        </div>
+        <div id="status">Ready to create an offer</div>
+        
+        <h2>Chat</h2>
+        <div id="chatBox"></div>
+        <div>
+            <input type="text" id="messageInput" placeholder="Type your message..." disabled>
+            <button id="sendBtn" disabled>Send</button>
+        </div>
+    </div>
+    
+    <script>
+        const myIdElement = document.getElementById('myId');
+        const copyBtn = document.getElementById('copyBtn');
+        const createOfferBtn = document.getElementById('createOfferBtn');
+        const peerIdElement = document.getElementById('peerId');
+        const connectBtn = document.getElementById('connectBtn');
+        const status = document.getElementById('status');
+        const chatBox = document.getElementById('chatBox');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        
+        let peerConnection;
+        let dataChannel;
+        
+        // Initialize peer connection with STUN servers for NAT traversal
+        function initPeerConnection() {
+            const config = {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' }
+                ]
+            };
+            
+            peerConnection = new RTCPeerConnection(config);
+            
+            // Handle ICE candidates
+            peerConnection.onicecandidate = event => {
+                if (event.candidate === null) {
+                    // ICE gathering complete, update the local description
+                    myIdElement.value = JSON.stringify(peerConnection.localDescription);
+                }
+            };
+            
+            // Connection state monitoring
+            peerConnection.onconnectionstatechange = () => {
+                status.textContent = `Connection: ${peerConnection.connectionState}`;
+                if (peerConnection.connectionState === 'connected') {
+                    status.style.color = 'green';
+                } else if (peerConnection.connectionState === 'failed') {
+                    status.style.color = 'red';
+                }
+            };
+            
+            // Handle data channel created by the remote peer
+            peerConnection.ondatachannel = event => {
+                dataChannel = event.channel;
+                setupDataChannel();
+            };
+        }
+        
+        // Create an offer as the initiator
+        async function createOffer() {
+            try {
+                // Initialize connection
+                if (peerConnection) {
+                    peerConnection.close();
+                }
+                initPeerConnection();
+                
+                // Create a data channel
+                dataChannel = peerConnection.createDataChannel('chat');
+                setupDataChannel();
+                
+                // Create and set local description (the offer)
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                
+                status.textContent = 'Offer created! Share your ID with peer.';
+            } catch (error) {
+                console.error('Error creating offer:', error);
+                status.textContent = `Error: ${error.message}`;
+                status.style.color = 'red';
+            }
+        }
+
+        // Process the peer's offer/answer
+        async function connectToPeer() {
+            try {
+                const peerSdp = peerIdElement.value.trim();
+                if (!peerSdp) {
+                    status.textContent = 'Please enter a peer ID';
+                    status.style.color = 'red';
+                    return;
+                }
+                
+                const sdp = JSON.parse(peerSdp);
+                
+                if (sdp.type === 'offer') {
+                    // We're receiving an offer, create answer
+                    if (peerConnection) {
+                        peerConnection.close();
+                    }
+                    initPeerConnection();
+                    
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    
+                    status.textContent = 'Answered offer! Share your ID back.';
+                } else if (sdp.type === 'answer') {
+                    // We're receiving an answer to our offer
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+                    status.textContent = 'Connection establishing...';
+                }
+            } catch (error) {
+                console.error('Error connecting to peer:', error);
+                status.textContent = `Error: ${error.message}`;
+                status.style.color = 'red';
+            }
+        }
+        
+        // Set up the data channel and message handling
+        function setupDataChannel() {
+            dataChannel.onopen = () => {
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                addMessage('Connected to peer!', 'system');
+                status.textContent = 'Connected!';
+                status.style.color = 'green';
+            };
+            
+            dataChannel.onclose = () => {
+                messageInput.disabled = true;
+                sendBtn.disabled = true;
+                addMessage('Connection closed.', 'system');
+                status.textContent = 'Disconnected';
+                status.style.color = 'red';
+            };
+            
+            dataChannel.onmessage = event => {
+                addMessage(event.data, 'received');
+            };
+        }
+        
+        // Send a chat message
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || !dataChannel || dataChannel.readyState !== 'open') return;
+            
+            dataChannel.send(message);
+            addMessage(message, 'sent');
+            messageInput.value = '';
+        }
+        
+        // Add a message to the chat box
+        function addMessage(message, type) {
+            const el = document.createElement('div');
+            el.classList.add('message');
+            
+            if (type === 'sent') {
+                el.classList.add('sent');
+                el.textContent = 'You: ' + message;
+            } else if (type === 'received') {
+                el.classList.add('received');
+                el.textContent = 'Peer: ' + message;
+            } else {
+                el.style.textAlign = 'center';
+                el.style.fontStyle = 'italic';
+                el.textContent = message;
+            }
+            
+            chatBox.appendChild(el);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+        
+        // Copy ID to clipboard
+        copyBtn.addEventListener('click', () => {
+            myIdElement.select();
+            document.execCommand('copy');
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => copyBtn.textContent = 'Copy ID', 1500);
+        });
+        
+        // Event listeners
+        createOfferBtn.addEventListener('click', createOffer);
+        connectBtn.addEventListener('click', connectToPeer);
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', e => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        // Add instructions
+        addMessage('Welcome to WebRTC P2P Chat!', 'system');
+        addMessage('To connect: One person creates an offer, shares the ID, then the other connects and shares their ID back.', 'system');
+    </script>
+</body>
+</html>

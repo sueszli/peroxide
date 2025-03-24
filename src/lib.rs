@@ -12,11 +12,6 @@ const ICE_SERVER: &str = "stun:stun.l.google.com:19302";
 struct WebRtcState {
     pc: web_sys::RtcPeerConnection,
     dc: web_sys::RtcDataChannel,
-    my_id_elem: Element,
-    peer_id_elem: Element,
-    status_elem: Element,
-    chat_box_elem: Element,
-    ping_button_elem: Element,
 }
 
 #[wasm_bindgen(start)]
@@ -39,7 +34,7 @@ pub fn run() -> Result<(), JsValue> {
     body.append_child(&create_offer_button)?;
     
     let callback = Closure::wrap(Box::new(move |_: Event| {
-        window.alert_with_message("Button was clicked").unwrap();
+        // alert user with "hello"
     }) as Box<dyn Fn(Event)>);
 
     create_offer_button.add_event_listener_with_callback("click", callback.as_ref().unchecked_ref())?;

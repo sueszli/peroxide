@@ -1,5 +1,4 @@
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
 use web_sys::{ Event, Element };
 
 const STYLING: &str = r#"
@@ -8,11 +7,16 @@ textarea { width: 100%; height: 3rem; }
 #chatBox { height: 200px; overflow-y: auto; border: 1px solid; }
 "#;
 
-const ICE_SERVERS: [&str; 1] = [ "stun:stun.l.google.com:19302", ];
+const ICE_SERVER: &str = "stun:stun.l.google.com:19302";
 
 struct WebRtcState {
     pc: web_sys::RtcPeerConnection,
     dc: web_sys::RtcDataChannel,
+    my_id_elem: Element,
+    peer_id_elem: Element,
+    status_elem: Element,
+    chat_box_elem: Element,
+    ping_button_elem: Element,
 }
 
 #[wasm_bindgen(start)]
@@ -29,13 +33,13 @@ pub fn run() -> Result<(), JsValue> {
     style.set_text_content(Some(STYLING));
     head.append_child(&style)?;
 
-    // offer generation
+    // generate offer
     let create_offer_button = document.create_element("button")?;
     create_offer_button.set_inner_html("Create Offer");
     body.append_child(&create_offer_button)?;
     
     let callback = Closure::wrap(Box::new(move |_: Event| {
-        // ...
+        window.alert_with_message("Button was clicked").unwrap();
     }) as Box<dyn Fn(Event)>);
 
     create_offer_button.add_event_listener_with_callback("click", callback.as_ref().unchecked_ref())?;

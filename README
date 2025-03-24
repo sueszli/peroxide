@@ -7,3 +7,5 @@ https://rustwasm.github.io/wasm-bindgen/api/web_sys/
 https://github.com/peers/peerjs/issues/778
 
 just 2 users, manually exchanging keys for more users is impractical
+
+one person creates an offer, shares the ID, then the other connects and shares their ID back

@@ -10,7 +10,6 @@ fn mount_window_size_listener(document: &web_sys::Document) -> Result<(), JsValu
         let width = web_sys::window().unwrap().inner_width()?.as_f64().unwrap();
         let height = web_sys::window().unwrap().inner_height()?.as_f64().unwrap();
         elem.set_text_content(Some(&format!("window size: {:.0} x {:.0}", width, height)));
-
         Ok(())
     }
 
@@ -36,7 +35,6 @@ fn mount_mousemove_listener(document: &web_sys::Document) -> Result<(), JsValue>
         let x = event.client_x();
         let y = event.client_y();
         elem.set_text_content(Some(&format!("mouse position: {:.0} x {:.0}", x, y)));
-
         Ok(())
     }
 

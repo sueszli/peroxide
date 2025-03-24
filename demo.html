@@ -1,35 +1,36 @@
 <!DOCTYPE html>
 <html>
 <style>
-    body { max-width:600px; margin:0 auto }
-    textarea { width:100%; height:3rem }
-    #chatBox { height:200px; overflow-y:auto; border:1px solid }
+    body { max-width: 600px; margin: 0 auto; }
+    textarea { width: 100%; height: 3rem; }
+    #chatBox { height: 200px; overflow-y: auto; border: 1px solid; }
 </style>
 <body>
     <textarea id="myId" readonly></textarea>
-    <button id="offerBtn">Create Offer</button>
+    <button id="offerBtn">Create Offer</button> <!-- start point -->
     <textarea id="peerId" placeholder="Enter peer ID here"></textarea>
     <button id="connectBtn">Connect</button>
     <div id="status">Ready</div>
     <div id="chatBox"></div>
-    <button id="pingBtn" disabled>Send Ping</button>
+    <button id="pingBtn" disabled>Send Ping</button> 
 </body>
 <script>
     let pc, dc;
-    const myId = document.getElementById('myId');
-    const peerId = document.getElementById('peerId');
-    const status = document.getElementById('status');
-    const chatBox = document.getElementById('chatBox');
-    const pingBtn = document.getElementById('pingBtn');
-
+    
     const append = msg => {
+        const chatBox = document.getElementById('chatBox');
+
         const div = document.createElement('div');
         div.textContent = msg;
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
     };
-
+    
     const setup = pc => {
+        const myId = document.getElementById('myId');
+        const status = document.getElementById('status');
+        const pingBtn = document.getElementById('pingBtn');
+
         pc.onicecandidate = e => { if (!e.candidate) myId.value = JSON.stringify(pc.localDescription) };
         pc.onconnectionstatechange = () => status.textContent = `Connection: ${pc.connectionState}`;
         pc.ondatachannel = e => {
@@ -40,6 +41,8 @@
     };
 
     document.getElementById('offerBtn').onclick = async () => {
+        const status = document.getElementById('status');
+
         pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         setup(pc);
         dc = pc.createDataChannel('chat');
@@ -50,6 +53,9 @@
     };
 
     document.getElementById('connectBtn').onclick = async () => {
+        const peerId = document.getElementById('peerId');
+        const status = document.getElementById('status');
+
         const sdp = JSON.parse(peerId.value);
         if (sdp.type === 'offer') {
             pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
@@ -63,7 +69,7 @@
         }
     };
 
-    pingBtn.onclick = () => {
+    document.getElementById('pingBtn').onclick = () => {
         if (dc && dc.readyState === 'open') {
             dc.send('ping');
             append('You: ping');

@@ -5,62 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2P WebRTC Chat</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .container {
-            border: 1px solid #ccc;
-            padding: 20px;
-            border-radius: 5px;
-        }
-        #chatBox {
-            height: 300px;
-            border: 1px solid #ddd;
-            padding: 10px;
-            overflow-y: auto;
-            margin-bottom: 10px;
-        }
-        input, button {
-            padding: 8px;
-            margin: 5px 0;
-        }
-        textarea {
-            width: 100%;
-            height: 60px;
-            padding: 8px;
-            margin: 5px 0;
-        }
-        .message {
-            margin-bottom: 10px;
-            padding: 8px;
-            border-radius: 5px;
-        }
-        .received {
-            background-color: #f1f1f1;
-        }
-        .sent {
-            background-color: #d4edda;
-            text-align: right;
-        }
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
+        #chatBox { height: 300px; border: 1px solid #ddd; padding: 10px; overflow-y: auto; margin-bottom: 10px; }
+        input, button, textarea { padding: 8px; margin: 5px 0; }
+        textarea { width: 100%; height: 60px; }
+        .message { margin-bottom: 10px; padding: 8px; border-radius: 5px; }
+        .received { background-color: #f1f1f1; }
+        .sent { background-color: #d4edda; text-align: right; }
+        .system { text-align: center; font-style: italic; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>P2P Chat</h1>
-        
         <p>Share your ID with the other person, then enter their ID to connect.</p>
         
         <div>
-            <label for="myId">Your ID: </label>
+            <label for="myId">Your ID:</label>
             <textarea id="myId" readonly></textarea>
             <button id="copyBtn">Copy ID</button>
             <button id="createOfferBtn">Create Offer</button>
         </div>
         <div>
-            <label for="peerId">Peer ID: </label>
+            <label for="peerId">Peer ID:</label>
             <textarea id="peerId" placeholder="Enter peer ID here"></textarea>
             <button id="connectBtn">Connect</button>
         </div>
@@ -75,184 +43,134 @@
     </div>
     
     <script>
-        const myIdElement = document.getElementById('myId');
-        const copyBtn = document.getElementById('copyBtn');
-        const createOfferBtn = document.getElementById('createOfferBtn');
-        const peerIdElement = document.getElementById('peerId');
-        const connectBtn = document.getElementById('connectBtn');
-        const status = document.getElementById('status');
-        const chatBox = document.getElementById('chatBox');
-        const messageInput = document.getElementById('messageInput');
-        const sendBtn = document.getElementById('sendBtn');
+        const el = {
+            myId: document.getElementById('myId'),
+            peerId: document.getElementById('peerId'),
+            status: document.getElementById('status'),
+            chatBox: document.getElementById('chatBox'),
+            messageInput: document.getElementById('messageInput'),
+            sendBtn: document.getElementById('sendBtn')
+        };
         
-        let peerConnection;
-        let dataChannel;
+        let pc, dc; // peerConnection and dataChannel
         
-        // Initialize peer connection with STUN servers for NAT traversal
-        function initPeerConnection() {
-            const config = { iceServers: [ { urls: 'stun:stun.l.google.com:19302' } ] };
+        // Initialize WebRTC peer connection
+        function init() {
+            if (pc) pc.close();
             
-            peerConnection = new RTCPeerConnection(config);
+            pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
             
-            // Handle ICE candidates
-            peerConnection.onicecandidate = event => {
-                if (event.candidate === null) {
-                    // ICE gathering complete, update the local description
-                    myIdElement.value = JSON.stringify(peerConnection.localDescription);
-                }
+            pc.onicecandidate = e => !e.candidate && (el.myId.value = JSON.stringify(pc.localDescription));
+            
+            pc.onconnectionstatechange = () => {
+                el.status.textContent = `Connection: ${pc.connectionState}`;
+                el.status.style.color = pc.connectionState === 'connected' ? 'green' : 
+                                        pc.connectionState === 'failed' ? 'red' : '';
             };
             
-            // Connection state monitoring
-            peerConnection.onconnectionstatechange = () => {
-                status.textContent = `Connection: ${peerConnection.connectionState}`;
-                if (peerConnection.connectionState === 'connected') {
-                    status.style.color = 'green';
-                } else if (peerConnection.connectionState === 'failed') {
-                    status.style.color = 'red';
-                }
-            };
-            
-            // Handle data channel created by the remote peer
-            peerConnection.ondatachannel = event => {
-                dataChannel = event.channel;
-                setupDataChannel();
-            };
+            pc.ondatachannel = e => { dc = e.channel; setupChannel(); };
         }
         
-        // Create an offer as the initiator
+        // Set up data channel
+        function setupChannel() {
+            dc.onopen = () => {
+                el.messageInput.disabled = el.sendBtn.disabled = false;
+                addMsg('Connected to peer!', 'system');
+                el.status.textContent = 'Connected!';
+                el.status.style.color = 'green';
+            };
+            
+            dc.onclose = () => {
+                el.messageInput.disabled = el.sendBtn.disabled = true;
+                addMsg('Connection closed.', 'system');
+                el.status.textContent = 'Disconnected';
+                el.status.style.color = 'red';
+            };
+            
+            dc.onmessage = e => addMsg(e.data, 'received');
+        }
+        
+        // Create an offer
         async function createOffer() {
             try {
-                // Initialize connection
-                if (peerConnection) {
-                    peerConnection.close();
-                }
-                initPeerConnection();
+                init();
+                dc = pc.createDataChannel('chat');
+                setupChannel();
                 
-                // Create a data channel
-                dataChannel = peerConnection.createDataChannel('chat');
-                setupDataChannel();
-                
-                // Create and set local description (the offer)
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                
-                status.textContent = 'Offer created! Share your ID with peer.';
-            } catch (error) {
-                console.error('Error creating offer:', error);
-                status.textContent = `Error: ${error.message}`;
-                status.style.color = 'red';
+                await pc.setLocalDescription(await pc.createOffer());
+                el.status.textContent = 'Offer created! Share your ID with peer.';
+            } catch (err) {
+                el.status.textContent = `Error: ${err.message}`;
+                el.status.style.color = 'red';
             }
         }
-
-        // Process the peer's offer/answer
-        async function connectToPeer() {
+        
+        // Connect to peer
+        async function connect() {
             try {
-                const peerSdp = peerIdElement.value.trim();
+                const peerSdp = el.peerId.value.trim();
                 if (!peerSdp) {
-                    status.textContent = 'Please enter a peer ID';
-                    status.style.color = 'red';
+                    el.status.textContent = 'Please enter a peer ID';
+                    el.status.style.color = 'red';
                     return;
                 }
                 
                 const sdp = JSON.parse(peerSdp);
                 
                 if (sdp.type === 'offer') {
-                    // We're receiving an offer, create answer
-                    if (peerConnection) {
-                        peerConnection.close();
-                    }
-                    initPeerConnection();
-                    
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    
-                    status.textContent = 'Answered offer! Share your ID back.';
+                    init();
+                    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+                    await pc.setLocalDescription(await pc.createAnswer());
+                    el.status.textContent = 'Answered offer! Share your ID back.';
                 } else if (sdp.type === 'answer') {
-                    // We're receiving an answer to our offer
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
-                    status.textContent = 'Connection establishing...';
+                    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+                    el.status.textContent = 'Connection establishing...';
                 }
-            } catch (error) {
-                console.error('Error connecting to peer:', error);
-                status.textContent = `Error: ${error.message}`;
-                status.style.color = 'red';
+            } catch (err) {
+                el.status.textContent = `Error: ${err.message}`;
+                el.status.style.color = 'red';
             }
         }
         
-        // Set up the data channel and message handling
-        function setupDataChannel() {
-            dataChannel.onopen = () => {
-                messageInput.disabled = false;
-                sendBtn.disabled = false;
-                addMessage('Connected to peer!', 'system');
-                status.textContent = 'Connected!';
-                status.style.color = 'green';
-            };
+        // Add a message to the chat
+        function addMsg(msg, type) {
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
             
-            dataChannel.onclose = () => {
-                messageInput.disabled = true;
-                sendBtn.disabled = true;
-                addMessage('Connection closed.', 'system');
-                status.textContent = 'Disconnected';
-                status.style.color = 'red';
-            };
+            if (type === 'sent') div.textContent = `You: ${msg}`;
+            else if (type === 'received') div.textContent = `Peer: ${msg}`;
+            else div.textContent = msg;
             
-            dataChannel.onmessage = event => {
-                addMessage(event.data, 'received');
-            };
+            el.chatBox.appendChild(div);
+            el.chatBox.scrollTop = el.chatBox.scrollHeight;
         }
         
-        // Send a chat message
-        function sendMessage() {
-            const message = messageInput.value.trim();
-            if (!message || !dataChannel || dataChannel.readyState !== 'open') return;
+        // Send a message
+        function sendMsg() {
+            const msg = el.messageInput.value.trim();
+            if (!msg || !dc || dc.readyState !== 'open') return;
             
-            dataChannel.send(message);
-            addMessage(message, 'sent');
-            messageInput.value = '';
+            dc.send(msg);
+            addMsg(msg, 'sent');
+            el.messageInput.value = '';
         }
-        
-        // Add a message to the chat box
-        function addMessage(message, type) {
-            const el = document.createElement('div');
-            el.classList.add('message');
-            
-            if (type === 'sent') {
-                el.classList.add('sent');
-                el.textContent = 'You: ' + message;
-            } else if (type === 'received') {
-                el.classList.add('received');
-                el.textContent = 'Peer: ' + message;
-            } else {
-                el.style.textAlign = 'center';
-                el.style.fontStyle = 'italic';
-                el.textContent = message;
-            }
-            
-            chatBox.appendChild(el);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-        
-        // Copy ID to clipboard
-        copyBtn.addEventListener('click', () => {
-            myIdElement.select();
-            document.execCommand('copy');
-            copyBtn.textContent = 'Copied!';
-            setTimeout(() => copyBtn.textContent = 'Copy ID', 1500);
-        });
         
         // Event listeners
-        createOfferBtn.addEventListener('click', createOffer);
-        connectBtn.addEventListener('click', connectToPeer);
-        sendBtn.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', e => {
-            if (e.key === 'Enter') sendMessage();
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            navigator.clipboard.writeText(el.myId.value)
+                .then(() => {
+                    const btn = document.getElementById('copyBtn');
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => btn.textContent = 'Copy ID', 1500);
+                });
         });
         
-        // Add instructions
-        addMessage('Welcome to WebRTC P2P Chat!', 'system');
-        addMessage('To connect: One person creates an offer, shares the ID, then the other connects and shares their ID back.', 'system');
+        document.getElementById('createOfferBtn').addEventListener('click', createOffer);
+        document.getElementById('connectBtn').addEventListener('click', connect);
+        document.getElementById('sendBtn').addEventListener('click', sendMsg);
+        el.messageInput.addEventListener('keypress', e => e.key === 'Enter' && sendMsg());
+        
+        addMsg('To connect: One person creates an offer, shares the ID, then the other connects and shares their ID back.', 'system');
     </script>
 </body>
 </html>

@@ -1,6 +1,5 @@
-use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use web_sys::{Element, Event, HtmlElement, MouseEvent};
+use web_sys::{Element, Event};
 
 fn mount_window_size_listener(document: &web_sys::Document) -> Result<(), JsValue> {
     let elem = document.create_element("div")?;

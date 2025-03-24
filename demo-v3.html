@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<body>
+</body>
+
+<script>
+// 
+// html
+// 
+
+const myIdElement = document.createElement('textarea');
+myIdElement.id = 'myId';
+myIdElement.readOnly = true;
+document.body.appendChild(myIdElement);
+
+const createOfferButtonElement = document.createElement('button');
+createOfferButtonElement.textContent = 'Create Offer';
+createOfferButtonElement.onclick = createOffer;
+document.body.appendChild(createOfferButtonElement);
+
+const peerIdElement = document.createElement('textarea');
+peerIdElement.id = 'peerId';
+peerIdElement.placeholder = 'Enter peer ID here';
+document.body.appendChild(peerIdElement);
+
+const connectButtonElement = document.createElement('button');
+connectButtonElement.textContent = 'Connect';
+connectButtonElement.onclick = connect;
+document.body.appendChild(connectButtonElement);
+
+const statusElement = document.createElement('div');
+statusElement.id = 'status';
+statusElement.textContent = 'Ready';
+document.body.appendChild(statusElement);
+
+const chatBoxElement = document.createElement('div');
+chatBoxElement.id = 'chatBox';
+document.body.appendChild(chatBoxElement);
+
+const pingButtonElement = document.createElement('button');
+pingButtonElement.id = 'pingBtn';
+pingButtonElement.textContent = 'Send Ping';
+pingButtonElement.onclick = sendPing;
+document.body.appendChild(pingButtonElement);
+
+// 
+// css
+// 
+
+const style = document.createElement('style');
+style.textContent = `
+    body { max-width: 600px; margin: 0 auto; padding: 20px; }
+    #chatBox { height: 200px; border: 1px solid #ddd; padding: 10px; overflow-y: auto; margin-bottom: 10px; }
+    textarea { width: 100%; height: 60px; }
+`;
+document.head.appendChild(style);
+
+// 
+// js
+// 
+
+let pc, dc;
+const myId = document.getElementById('myId');
+const peerId = document.getElementById('peerId');
+const status = document.getElementById('status');
+const chatBox = document.getElementById('chatBox');
+const pingBtn = document.getElementById('pingBtn');
+
+function init() {
+    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pc.onicecandidate = e => !e.candidate && (myId.value = JSON.stringify(pc.localDescription));
+    pc.onconnectionstatechange = () => status.textContent = `Connection: ${pc.connectionState}`;
+    pc.ondatachannel = e => setupChannel(e.channel);
+}
+
+function setupChannel(channel) {
+    dc = channel;
+    dc.onopen = () => {
+        pingBtn.disabled = false;
+        addMsg('Connected!');
+    };
+    dc.onmessage = e => addMsg(`Peer: ${e.data}`);
+}
+
+async function createOffer() {
+    init();
+    dc = pc.createDataChannel('chat');
+    setupChannel(dc);
+    await pc.setLocalDescription(await pc.createOffer());
+    status.textContent = 'Offer created! Share your ID.';
+}
+
+async function connect() {
+    const sdp = JSON.parse(peerId.value);
+    if (sdp.type === 'offer') {
+        init();
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await pc.setLocalDescription(await pc.createAnswer());
+        status.textContent = 'Answered offer! Share your ID back.';
+    } else if (sdp.type === 'answer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        status.textContent = 'Connecting...';
+    }
+}
+
+function addMsg(msg) {
+    const div = document.createElement('div');
+    div.textContent = msg;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function sendPing() {
+    if (dc && dc.readyState === 'open') {
+        dc.send('ping');
+        addMsg('You: ping');
+    }
+}
+</script>
+</html>

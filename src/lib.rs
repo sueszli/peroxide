@@ -22,11 +22,6 @@ const HTML: &str = r#"
     <button id="pingBtn" disabled>Send Ping</button> 
 "#;
 
-struct WebRtcState {
-    pc: RtcPeerConnection,
-    dc: RtcDataChannel,
-}
-
 #[wasm_bindgen(start)]
 pub fn run() -> Result<(), JsValue> {
     console_error_panic_hook::set_once(); // panics to console.error
@@ -39,15 +34,13 @@ pub fn run() -> Result<(), JsValue> {
     let style = document.create_element("style")?;
     style.set_text_content(Some(STYLING));
     head.append_child(&style)?;
+    
     body.set_inner_html(HTML);
 
-    let my_id: HtmlTextAreaElement = document.get_element_by_id("myId").unwrap().dyn_into()?;
-    let offer_btn: HtmlButtonElement = document.get_element_by_id("offerBtn").unwrap().dyn_into()?;
-    let peer_id: HtmlTextAreaElement = document.get_element_by_id("peerId").unwrap().dyn_into()?;
-    let connect_btn: HtmlButtonElement = document.get_element_by_id("connectBtn").unwrap().dyn_into()?;
-    let status = document.get_element_by_id("status").unwrap();
-    let chat_box = document.get_element_by_id("chatBox").unwrap();
-    let ping_btn: HtmlButtonElement = document.get_element_by_id("pingBtn").unwrap().dyn_into()?;
+    struct WebRtcState {
+        pc: RtcPeerConnection,
+        dc: RtcDataChannel,
+    }    
 
     Ok(())
 }

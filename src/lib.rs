@@ -200,14 +200,14 @@ fn create_peer_connection() -> RtcPeerConnection {
     let onconnectionstatechange_callback = Closure::wrap(Box::new(move || {
         let state_str = match pc_clone.connection_state() {
             RtcPeerConnectionState::New => "new",
-            RtcPeerConnectionState::Connecting => "connecting",
-            RtcPeerConnectionState::Connected => "connected",
-            RtcPeerConnectionState::Disconnected => "disconnected",
-            RtcPeerConnectionState::Failed => "failed",
-            RtcPeerConnectionState::Closed => "closed",
-            _ => "unknown",
+            RtcPeerConnectionState::Connecting => "Connecting",
+            RtcPeerConnectionState::Connected => "Connected",
+            RtcPeerConnectionState::Disconnected => "Disconnected",
+            RtcPeerConnectionState::Failed => "Failed",
+            RtcPeerConnectionState::Closed => "Closed",
+            _ => "Unknown error",
         };
-        set_status(&format!("Connection {}", state_str));
+        set_status(&format!("{}", state_str));
     }) as Box<dyn FnMut()>);
     pc.set_onconnectionstatechange(Some(onconnectionstatechange_callback.as_ref().unchecked_ref()));
     onconnectionstatechange_callback.forget();

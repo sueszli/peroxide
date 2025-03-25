@@ -104,7 +104,7 @@ fn append_chat_box(message: &str) {
     chatbox.set_scroll_top(chatbox.scroll_height());
 }
 
-pub fn setup_data_channel(dc: &RtcDataChannel) {
+fn setup_data_channel(dc: &RtcDataChannel) {
     let onopen_callback = Closure::wrap(Box::new(move || {
         enable_chat_box();
         append_chat_box("Connected!");
@@ -121,7 +121,7 @@ pub fn setup_data_channel(dc: &RtcDataChannel) {
     onmessage_callback.forget();
 }
 
-pub fn create_peer_connection() -> RtcPeerConnection {
+fn create_peer_connection() -> RtcPeerConnection {
     let ice_server: RtcIceServer = RtcIceServer::new();
     ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
     let configuration = RtcConfiguration::new();

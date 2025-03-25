@@ -28,6 +28,10 @@ const STYLING: &str = r#"
     #chatBox { height: 200px; overflow-y: auto; border: 1px solid; }
 "#;
 
+// read fields: id from offering side, id from answering side
+// write fields: id to connect to (one for both)
+// chat box: messages
+
 const HTML: &str = r#"
     <span>Status: <span id="status">Ready</span></span>
 

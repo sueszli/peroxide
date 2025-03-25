@@ -26,25 +26,25 @@
             document.getElementById('pingBtn').disabled = false;
             append('Connected!');
         };
+        
         dc.onmessage = e => {
             append(`Peer: ${e.data}`);
         };
-        return dc
     };
 
     const createPeerConnection = () => {
         const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-
+        
         pc.onicecandidate = e => {
             if (!e.candidate) {
                 document.getElementById('myId').value = JSON.stringify(pc.localDescription);
             }
         };
-
+        
         pc.onconnectionstatechange = () => {
             document.getElementById('status').textContent = `Connection: ${pc.connectionState}`;
         };
-
+        
         return pc;
     };
 
@@ -53,7 +53,8 @@
 
     document.getElementById('offerBtn').onclick = async () => {
         PEER_CONNECTION = createPeerConnection();
-        DATA_CHANNEL = setupDataChannel(PEER_CONNECTION.createDataChannel('chat'));
+        DATA_CHANNEL = PEER_CONNECTION.createDataChannel('chat')
+        setupDataChannel(DATA_CHANNEL);
         
         await PEER_CONNECTION.setLocalDescription(await PEER_CONNECTION.createOffer());
         document.getElementById('status').textContent = 'Offer created! Share your ID.';
@@ -66,8 +67,8 @@
             // answer a remote offer
             PEER_CONNECTION = createPeerConnection();
             PEER_CONNECTION.ondatachannel = e => {
-                setupDataChannel(e.channel);
                 DATA_CHANNEL = e.channel;
+                setupDataChannel(DATA_CHANNEL);
             }
             await PEER_CONNECTION.setRemoteDescription(sdp);
             await PEER_CONNECTION.setLocalDescription(await PEER_CONNECTION.createAnswer());

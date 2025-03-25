@@ -26,7 +26,7 @@ more users would be impractical without a signaling server.
 </body>
 <script>
     let pc, dc;
-    
+
     const append = msg => {
         const chatBox = document.getElementById('chatBox');
 
@@ -35,30 +35,36 @@ more users would be impractical without a signaling server.
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
     };
-    
-    const setup = pcon => {
+
+    const setupDC = (channel) => {
+        const pingBtn = document.getElementById('pingBtn');
+
+        channel.onopen = () => {
+            pingBtn.disabled = false;
+            append('Connected!');
+        };
+        channel.onmessage = e => {
+            append(`Peer: ${e.data}`);
+        }
+        return channel;
+    }
+
+    const getPC = () => {
         const myId = document.getElementById('myId');
         const status = document.getElementById('status');
-        const pingBtn = document.getElementById('pingBtn');
         
-        pcon.onicecandidate = e => { if (!e.candidate) myId.value = JSON.stringify(pcon.localDescription) };
-        pcon.onconnectionstatechange = () => status.textContent = `Connection: ${pcon.connectionState}`;
-        pcon.ondatachannel = e => {
-            e.channel.onopen = () => { pingBtn.disabled = false; append('Connected!') };
-            e.channel.onmessage = e => append(`Peer: ${e.data}`);
-        };
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        pc.onicecandidate = e => { if (!e.candidate) myId.value = JSON.stringify(pc.localDescription) };
+        pc.onconnectionstatechange = () => status.textContent = `Connection: ${pc.connectionState}`;
+        pc.ondatachannel = e => dc = setupDC(e.channel);
+        return pc;
     };
 
     document.getElementById('offerBtn').onclick = async () => {
-        const status = document.getElementById('status');
-
-        pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-        setup(pc);
-        dc = pc.createDataChannel('chat');
-        dc.onopen = () => { pingBtn.disabled = false; append('Connected!') };
-        dc.onmessage = e => append(`Peer: ${e.data}`);
+        pc = getPC();
+        dc = setupDC(pc.createDataChannel('chat'));
         await pc.setLocalDescription(await pc.createOffer());
-        status.textContent = 'Offer created! Share your ID.';
+        document.getElementById('status').textContent = 'Offer created! Share your ID.';
     };
 
     document.getElementById('connectBtn').onclick = async () => {
@@ -67,8 +73,7 @@ more users would be impractical without a signaling server.
 
         const sdp = JSON.parse(peerId.value);
         if (sdp.type === 'offer') {
-            pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-            setup(pc);
+            pc = getPC();
             await pc.setRemoteDescription(sdp);
             await pc.setLocalDescription(await pc.createAnswer());
             status.textContent = 'Answered offer! Share your ID back.';

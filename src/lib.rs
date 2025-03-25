@@ -53,7 +53,7 @@ fn append_chat_box(message: &str) {
 // logic
 //
 
-fn setup(pc: &RtcPeerConnection) {
+fn setup_pc(pc: &RtcPeerConnection) {
     // on ice candidate: display my id
     let pc_clone = pc.clone();
     let onicecandidate_callback = Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
@@ -124,25 +124,20 @@ pub fn run() -> Result<(), JsValue> {
         wasm_bindgen_futures::spawn_local(async move {
             let ice_server = RtcIceServer::new();
             ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
-
             let configuration = RtcConfiguration::new();
             configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
             let pc = RtcPeerConnection::new_with_configuration(&configuration).unwrap();
-            setup(&pc);
+            setup_pc(&pc);
+            let channel = pc.create_data_channel("chat");            
 
-            let channel = pc.create_data_channel("chat");
-            let ping_btn = web_sys::window().unwrap().document().unwrap().get_element_by_id("pingBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
-            
-            // onopen
-            let ping_clone = ping_btn.clone();
+            // on open
             let on_open = Closure::wrap(Box::new(move || {
-                ping_clone.set_disabled(false);
                 append_chat_box("Connected!");
             }) as Box<dyn FnMut()>);
             channel.set_onopen(Some(on_open.as_ref().unchecked_ref()));
             on_open.forget();
             
-            // onmessage
+            // on message
             let on_message = Closure::wrap(Box::new(move |e: MessageEvent| {
                 if let Some(data) = e.data().as_string() {
                     append_chat_box(&format!("Peer: {}", data));

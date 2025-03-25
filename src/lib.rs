@@ -128,25 +128,8 @@ pub fn run() -> Result<(), JsValue> {
     document.head().unwrap().append_child(&style)?;
     document.body().unwrap().set_inner_html(HTML);
 
-    type PeerConnection = Rc<RefCell<Option<RtcPeerConnection>>>;
-    type DataChannel = Rc<RefCell<Option<RtcDataChannel>>>;
-    let peer_connection: PeerConnection = Rc::new(RefCell::new(None));
-    let data_channel: DataChannel = Rc::new(RefCell::new(None));
-
-    // let offer_btn = document.get_element_by_id("offerBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
-    // let offer_btn_callback = Closure::wrap(Box::new(move || {
-    //     wasm_bindgen_futures::spawn_local(async move {
-    //         let PEER_CONNECTION = create_peer_connection();
-    //         let DATA_CHANNEL = PEER_CONNECTION.create_data_channel("chat");
-    //         setup_data_channel(&DATA_CHANNEL);
-            
-    //         let offer = JsFuture::from(PEER_CONNECTION.create_offer()).await.unwrap();
-    //         JsFuture::from(PEER_CONNECTION.set_local_description(&offer.into())).await.unwrap();
-    //         set_status("Offer created! Share your ID.");
-    //     });
-    // }) as Box<dyn FnMut()>);
-    // offer_btn.set_onclick(Some(offer_btn_callback.as_ref().unchecked_ref()));
-    // offer_btn_callback.forget();
+    let peer_connection: Rc<RefCell<Option<RtcPeerConnection>>> = Rc::new(RefCell::new(None));
+    let data_channel: Rc<RefCell<Option<RtcDataChannel>>> = Rc::new(RefCell::new(None));
 
     {
         let pc = peer_connection.clone();
@@ -224,7 +207,6 @@ pub fn run() -> Result<(), JsValue> {
         closure.forget();
     }
 
-
     {
         let dc = data_channel.clone();
         let btn = document.get_element_by_id("pingBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
@@ -241,7 +223,6 @@ pub fn run() -> Result<(), JsValue> {
         btn.set_onclick(Some(closure.as_ref().unchecked_ref()));
         closure.forget();
     }
-
 
     Ok(())
 }

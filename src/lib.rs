@@ -59,9 +59,10 @@ fn append_chat_box(message: &str) {
 // logic
 //
 
-fn setup_data_channel(dc: &RtcDataChannel) -> RtcDataChannel {
+fn setup_data_channel(dc: &RtcDataChannel) {
     // on open
     let onopen_callback = Closure::wrap(Box::new(move || {
+        enable_chat_box();
         append_chat_box("Connected!");
     }) as Box<dyn FnMut()>);
     dc.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
@@ -75,8 +76,6 @@ fn setup_data_channel(dc: &RtcDataChannel) -> RtcDataChannel {
     }) as Box<dyn FnMut(MessageEvent)>);
     dc.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     onmessage_callback.forget();
-
-    return dc;
 }
 
 fn create_peer_connection() -> RtcPeerConnection {
@@ -132,35 +131,12 @@ pub fn run() -> Result<(), JsValue> {
     let offer_btn = document.get_element_by_id("offerBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
     let offer_btn_callback = Closure::wrap(Box::new(move || {
         wasm_bindgen_futures::spawn_local(async move {
-            let pc = create_peer_connection();
-            let dc = pc.create_data_channel("chat");            
-
-            // on open
-            let on_open = Closure::wrap(Box::new(move || {
-                append_chat_box("Connected!");
-            }) as Box<dyn FnMut()>);
-            dc.set_onopen(Some(on_open.as_ref().unchecked_ref()));
-            on_open.forget();
+            let PEER_CONNECTION = create_peer_connection();
+            let DATA_CHANNEL = PEER_CONNECTION.create_data_channel("chat");
+            setup_data_channel(&DATA_CHANNEL);
             
-            // on message
-            let on_message = Closure::wrap(Box::new(move |e: MessageEvent| {
-                if let Some(data) = e.data().as_string() {
-                    append_chat_box(&format!("Peer: {}", data));
-                }
-            }) as Box<dyn FnMut(MessageEvent)>);
-            dc.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
-            on_message.forget();
-            
-            match JsFuture::from(pc.create_offer()).await {
-                Ok(js_offer) => {
-                    let offer: RtcSessionDescriptionInit = js_offer.into();
-                    if let Err(e) = JsFuture::from(pc.set_local_description(&offer)).await {
-                        console::error_1(&e);
-                    }
-                }
-                Err(e) => console::error_1(&e),
-            }
-
+            let offer = JsFuture::from(PEER_CONNECTION.create_offer()).await.unwrap();
+            JsFuture::from(PEER_CONNECTION.set_local_description(&offer.into())).await.unwrap();
             set_status("Offer created! Share your ID.");
         });
     }) as Box<dyn FnMut()>);

@@ -1,7 +1,6 @@
 <!-- 
-simple demo of WebRTC data channel.
-
-just 2 users manually exchanging keys. more would be impractical without a signaling server.
+just 2 users manually exchanging keys.
+more would be impractical without a server.
 
 - A: creates offer, shares with B
 - B: enters A's offer, creates answer, shares with A
@@ -18,7 +17,7 @@ just 2 users manually exchanging keys. more would be impractical without a signa
 </style>
 <body>
     <textarea id="myId" readonly></textarea>
-    <button id="offerBtn">Create Offer</button> <!-- starting point -->
+    <button id="offerBtn">Create Offer</button> <!-- start point -->
     <textarea id="peerId" placeholder="Enter peer ID here"></textarea>
     <button id="connectBtn">Connect</button>
     <div id="status">Ready</div>

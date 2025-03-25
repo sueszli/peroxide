@@ -1,6 +1,15 @@
-helpful links:
+      O-O-H
+     //
+Cl--{/
+     \
+      \_____
+      / --- \
+     /       \
+     \\     //
+      \_____/
+
+useful links:
 
 - https://developer.mozilla.org/en-US/docs/WebAssembly/Guides/Rust_to_Wasm
-- https://rustwasm.github.io/wasm-bindgen/
 - https://rustwasm.github.io/wasm-bindgen/api/web_sys/
 - https://github.com/peers/peerjs/issues/778

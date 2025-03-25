@@ -29,7 +29,7 @@ const STYLING: &str = r#"
 "#;
 
 const HTML: &str = r#"
-    <span>Status:<span id="status">Ready</span></span>
+    <span>Status: <span id="status">Ready</span></span>
 
     </br></br></br>
 

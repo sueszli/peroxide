@@ -3,8 +3,6 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
 use js_sys::*;
 use web_sys::*;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 // 
 // rendering
@@ -40,7 +38,7 @@ fn set_status(message: &str) {
     status.set_text_content(Some(message));
 }
 
-fn append_chatbox(message: &str) {
+fn append_chat_box(message: &str) {
     let document = window().unwrap().document().unwrap();
     let chatbox = document.get_element_by_id("chatBox").unwrap();
 
@@ -51,41 +49,25 @@ fn append_chatbox(message: &str) {
     chatbox.set_scroll_top(chatbox.scroll_height());
 }
 
-// 
+//
 // logic
-// 
-
-// struct AppState {
-//     peer_connection: Option<RtcPeerConnection>,
-//     data_channel: Option<RtcDataChannel>,
-// }
-
-// thread_local! {
-//     static APP_STATE: Rc<RefCell<AppState>> = Rc::new(RefCell::new(AppState {
-//         peer_connection: None,
-//         data_channel: None,
-//     }));
-// }
+//
 
 fn setup(pc: &RtcPeerConnection) {
-    let my_id = web_sys::window().unwrap().document().unwrap().get_element_by_id("myId").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-    let ping_btn = web_sys::window().unwrap().document().unwrap().get_element_by_id("pingBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
-
-    // onicecandidate
+    // on ice candidate: display my id
     let pc_clone = pc.clone();
-    let my_id_clone = my_id.clone();
     let onicecandidate_callback = Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
         if event.candidate().is_none() {
             if let Some(desc) = pc_clone.local_description() {
-                let json = js_sys::JSON::stringify(&desc).unwrap();
-                my_id_clone.set_value(&json.as_string().unwrap());
+                let json_str = js_sys::JSON::stringify(&desc).unwrap().as_string().unwrap();
+                set_my_id(&json_str);
             }
         }
     }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>);
     pc.set_onicecandidate(Some(onicecandidate_callback.as_ref().unchecked_ref()));
     onicecandidate_callback.forget();
-
-    // oniceconnectionstatechange
+    
+    // on connection state change: display new status
     let pc_clone = pc.clone();
     let onconnectionstatechange_callback = Closure::wrap(Box::new(move || {
         let state_str = match pc_clone.connection_state() {
@@ -102,30 +84,26 @@ fn setup(pc: &RtcPeerConnection) {
     pc.set_onconnectionstatechange(Some(onconnectionstatechange_callback.as_ref().unchecked_ref()));
     onconnectionstatechange_callback.forget();
 
-    // ondatachannel
-    let ping_btn_clone = ping_btn.clone();
+    // on data channel: display new messages
     let ondatachannel_callback = Closure::wrap(Box::new(move |event: RtcDataChannelEvent| {
         let channel = event.channel();
         
-        let ping_btn_inner = ping_btn_clone.clone();
+        // on open
         let onopen_callback = Closure::wrap(Box::new(move || {
-            ping_btn_inner.set_disabled(false);
-            append_chatbox("Connected!");
+            append_chat_box("Connected!");
         }) as Box<dyn FnMut()>);
         channel.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
         onopen_callback.forget();
         
+        // on message
         let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
             if let Some(data) = event.data().as_string() {
-                append_chatbox(&format!("Peer: {}", data));
+                append_chat_box(&format!("Peer: {}", data));
             }
         }) as Box<dyn FnMut(MessageEvent)>);
         channel.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
         onmessage_callback.forget();
 
-        // APP_STATE.with(|state| {
-        //     state.borrow_mut().data_channel = Some(channel);
-        // });
     }) as Box<dyn FnMut(RtcDataChannelEvent)>);
     pc.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
     ondatachannel_callback.forget();
@@ -133,38 +111,33 @@ fn setup(pc: &RtcPeerConnection) {
 
 #[wasm_bindgen(start)]
 pub fn run() -> Result<(), JsValue> {
-    console_error_panic_hook::set_once(); // panics to console.error
+    console_error_panic_hook::set_once(); // redirect panics to console.error
 
-    let window = web_sys::window().unwrap();
-    let document = window.document().unwrap();
-    let body = document.body().unwrap();
-    let head = document.head().unwrap();
-
+    let document = web_sys::window().unwrap().document().unwrap();
     let style = document.create_element("style")?;
     style.set_text_content(Some(STYLING));
-    head.append_child(&style)?;
-    
-    body.set_inner_html(HTML);
+    document.head().unwrap().append_child(&style)?;
+    document.body().unwrap().set_inner_html(HTML);
 
     let offer_btn = document.get_element_by_id("offerBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
     let offer_btn_callback = Closure::wrap(Box::new(move || {
         wasm_bindgen_futures::spawn_local(async move {
             let ice_server = RtcIceServer::new();
             ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
+
             let configuration = RtcConfiguration::new();
             configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
             let pc = RtcPeerConnection::new_with_configuration(&configuration).unwrap();
             setup(&pc);
-            
+
             let channel = pc.create_data_channel("chat");
-            
             let ping_btn = web_sys::window().unwrap().document().unwrap().get_element_by_id("pingBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
             
             // onopen
             let ping_clone = ping_btn.clone();
             let on_open = Closure::wrap(Box::new(move || {
                 ping_clone.set_disabled(false);
-                append_chatbox("Connected!");
+                append_chat_box("Connected!");
             }) as Box<dyn FnMut()>);
             channel.set_onopen(Some(on_open.as_ref().unchecked_ref()));
             on_open.forget();
@@ -172,7 +145,7 @@ pub fn run() -> Result<(), JsValue> {
             // onmessage
             let on_message = Closure::wrap(Box::new(move |e: MessageEvent| {
                 if let Some(data) = e.data().as_string() {
-                    append_chatbox(&format!("Peer: {}", data));
+                    append_chat_box(&format!("Peer: {}", data));
                 }
             }) as Box<dyn FnMut(MessageEvent)>);
             channel.set_onmessage(Some(on_message.as_ref().unchecked_ref()));

@@ -1,6 +1,6 @@
 <!-- 
-just 2 users manually exchanging keys.
-more would be impractical without a server.
+demo for 2 users manually exchanging keys.
+more users would be impractical without a signaling server.
 
 - A: creates offer, shares with B
 - B: enters A's offer, creates answer, shares with A
@@ -17,7 +17,7 @@ more would be impractical without a server.
 </style>
 <body>
     <textarea id="myId" readonly></textarea>
-    <button id="offerBtn">Create Offer</button> <!-- start point -->
+    <button id="offerBtn">Create Offer</button>
     <textarea id="peerId" placeholder="Enter peer ID here"></textarea>
     <button id="connectBtn">Connect</button>
     <div id="status">Ready</div>
@@ -36,17 +36,16 @@ more would be impractical without a server.
         chatBox.scrollTop = chatBox.scrollHeight;
     };
     
-    const setup = pc => {
+    const setup = _pc => {
         const myId = document.getElementById('myId');
         const status = document.getElementById('status');
         const pingBtn = document.getElementById('pingBtn');
 
-        pc.onicecandidate = e => { if (!e.candidate) myId.value = JSON.stringify(pc.localDescription) };
-        pc.onconnectionstatechange = () => status.textContent = `Connection: ${pc.connectionState}`;
-        pc.ondatachannel = e => {
-            dc = e.channel;
-            dc.onopen = () => { pingBtn.disabled = false; append('Connected!') };
-            dc.onmessage = e => append(`Peer: ${e.data}`);
+        _pc.onicecandidate = e => { if (!e.candidate) myId.value = JSON.stringify(_pc.localDescription) };
+        _pc.onconnectionstatechange = () => status.textContent = `Connection: ${_pc.connectionState}`;
+        _pc.ondatachannel = e => {
+            e.channel.onopen = () => { pingBtn.disabled = false; append('Connected!') };
+            e.channel.onmessage = e => append(`Peer: ${e.data}`);
         };
     };
 

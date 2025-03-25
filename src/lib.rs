@@ -52,7 +52,7 @@ const HTML: &str = r#"
     <section id="host">
         <h2>Host</h2>
 
-        <div>Send this invite code to you guest:</div>
+        <div>Send this invite code to your guest:</div>
 
         <textarea class="my_id" readonly></textarea>
 

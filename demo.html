@@ -21,6 +21,17 @@
         document.getElementById('chatBox').appendChild(div);
     };
 
+    const setupDataChannel = dc => {
+        dc.onopen = () => {
+            document.getElementById('pingBtn').disabled = false;
+            append('Connected!');
+        };
+        dc.onmessage = e => {
+            append(`Peer: ${e.data}`);
+        };
+        return dc
+    };
+
     const createPeerConnection = () => {
         const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
 
@@ -37,23 +48,12 @@
         return pc;
     };
 
-    const setupDataChannel = (pc, dc) => {
-        dc.onopen = () => {
-            document.getElementById('pingBtn').disabled = false;
-            append('Connected!');
-        };
-        dc.onmessage = e => {
-            append(`Peer: ${e.data}`);
-        };
-        return dc
-    };
-
     let PEER_CONNECTION = null;
     let DATA_CHANNEL = null;
 
     document.getElementById('offerBtn').onclick = async () => {
         PEER_CONNECTION = createPeerConnection();
-        DATA_CHANNEL = setupDataChannel(PEER_CONNECTION, PEER_CONNECTION.createDataChannel('chat'));
+        DATA_CHANNEL = setupDataChannel(PEER_CONNECTION.createDataChannel('chat'));
         
         await PEER_CONNECTION.setLocalDescription(await PEER_CONNECTION.createOffer());
         document.getElementById('status').textContent = 'Offer created! Share your ID.';
@@ -62,14 +62,19 @@
     document.getElementById('connectBtn').onclick = async () => {
         const sdp = JSON.parse(document.getElementById('peerId').value);
         
-        if (sdp.type === 'offer') { // answer a remote offer
+        if (sdp.type === 'offer') {
+            // answer a remote offer
             PEER_CONNECTION = createPeerConnection();
-            PEER_CONNECTION.ondatachannel = e => DATA_CHANNEL = setupDataChannel(PEER_CONNECTION, e.channel);
+            PEER_CONNECTION.ondatachannel = e => {
+                setupDataChannel(e.channel);
+                DATA_CHANNEL = e.channel;
+            }
             await PEER_CONNECTION.setRemoteDescription(sdp);
             await PEER_CONNECTION.setLocalDescription(await PEER_CONNECTION.createAnswer());
             document.getElementById('status').textContent = 'Answered offer! Share your ID back.';
         
-        } else if (sdp.type === 'answer') { // receive answer to our own offer
+        } else if (sdp.type === 'answer') {
+            // receive answer to our own offer
             await PEER_CONNECTION.setRemoteDescription(sdp);
             document.getElementById('status').textContent = 'Connecting...';
         }

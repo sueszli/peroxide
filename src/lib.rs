@@ -38,6 +38,12 @@ fn set_status(message: &str) {
     status.set_text_content(Some(message));
 }
 
+fn enable_chat_box() {
+    let document = window().unwrap().document().unwrap();
+    let ping_btn = document.get_element_by_id("pingBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
+    ping_btn.set_disabled(false);
+}
+
 fn append_chat_box(message: &str) {
     let document = window().unwrap().document().unwrap();
     let chatbox = document.get_element_by_id("chatBox").unwrap();
@@ -53,14 +59,34 @@ fn append_chat_box(message: &str) {
 // logic
 //
 
+fn setup_data_channel(dc: &RtcDataChannel) -> RtcDataChannel {
+    // on open
+    let onopen_callback = Closure::wrap(Box::new(move || {
+        append_chat_box("Connected!");
+    }) as Box<dyn FnMut()>);
+    dc.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
+    onopen_callback.forget();
+    
+    // on message
+    let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
+        if let Some(data) = event.data().as_string() {
+            append_chat_box(&format!("Peer: {}", data));
+        }
+    }) as Box<dyn FnMut(MessageEvent)>);
+    dc.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
+    onmessage_callback.forget();
+
+    return dc;
+}
+
 fn create_peer_connection() -> RtcPeerConnection {
-    let ice_server = RtcIceServer::new();
+    let ice_server: RtcIceServer = RtcIceServer::new();
     ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
     let configuration = RtcConfiguration::new();
     configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
     let pc = RtcPeerConnection::new_with_configuration(&configuration).unwrap();
 
-    // on ice candidate: display my id
+    // on ice candidate
     let pc_clone = pc.clone();
     let onicecandidate_callback = Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
         if event.candidate().is_none() {
@@ -73,7 +99,7 @@ fn create_peer_connection() -> RtcPeerConnection {
     pc.set_onicecandidate(Some(onicecandidate_callback.as_ref().unchecked_ref()));
     onicecandidate_callback.forget();
     
-    // on connection state change: display new status
+    // on connection state change
     let pc_clone = pc.clone();
     let onconnectionstatechange_callback = Closure::wrap(Box::new(move || {
         let state_str = match pc_clone.connection_state() {
@@ -89,30 +115,6 @@ fn create_peer_connection() -> RtcPeerConnection {
     }) as Box<dyn FnMut()>);
     pc.set_onconnectionstatechange(Some(onconnectionstatechange_callback.as_ref().unchecked_ref()));
     onconnectionstatechange_callback.forget();
-
-    // on data channel: display new messages
-    let ondatachannel_callback = Closure::wrap(Box::new(move |event: RtcDataChannelEvent| {
-        let channel = event.channel();
-        
-        // on open
-        let onopen_callback = Closure::wrap(Box::new(move || {
-            append_chat_box("Connected!");
-        }) as Box<dyn FnMut()>);
-        channel.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
-        onopen_callback.forget();
-        
-        // on message
-        let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
-            if let Some(data) = event.data().as_string() {
-                append_chat_box(&format!("Peer: {}", data));
-            }
-        }) as Box<dyn FnMut(MessageEvent)>);
-        channel.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
-        onmessage_callback.forget();
-
-    }) as Box<dyn FnMut(RtcDataChannelEvent)>);
-    pc.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
-    ondatachannel_callback.forget();
 
     return pc;
 }

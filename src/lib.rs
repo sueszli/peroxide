@@ -6,6 +6,10 @@ use web_sys::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+// 
+// rendering
+// 
+
 const STYLING: &str = r#"
     body { max-width: 600px; margin: 0 auto; }
     textarea { width: 100%; height: 3rem; }
@@ -22,16 +26,18 @@ const HTML: &str = r#"
     <button id="pingBtn" disabled>Send Ping</button> 
 "#;
 
-struct AppState {
-    peer_connection: Option<RtcPeerConnection>,
-    data_channel: Option<RtcDataChannel>,
+fn set_my_id(id: &str) {
+    let document = window().unwrap().document().unwrap();
+    let my_id = document.get_element_by_id("myId").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+
+    my_id.set_value(id);
 }
 
-thread_local! {
-    static APP_STATE: Rc<RefCell<AppState>> = Rc::new(RefCell::new(AppState {
-        peer_connection: None,
-        data_channel: None,
-    }));
+fn set_status(message: &str) {
+    let document = window().unwrap().document().unwrap();
+    let status = document.get_element_by_id("status").unwrap();
+
+    status.set_text_content(Some(message));
 }
 
 fn append_chatbox(message: &str) {
@@ -45,11 +51,25 @@ fn append_chatbox(message: &str) {
     chatbox.set_scroll_top(chatbox.scroll_height());
 }
 
+// 
+// logic
+// 
+
+// struct AppState {
+//     peer_connection: Option<RtcPeerConnection>,
+//     data_channel: Option<RtcDataChannel>,
+// }
+
+// thread_local! {
+//     static APP_STATE: Rc<RefCell<AppState>> = Rc::new(RefCell::new(AppState {
+//         peer_connection: None,
+//         data_channel: None,
+//     }));
+// }
+
 fn setup(pc: &RtcPeerConnection) {
-    let document = web_sys::window().unwrap().document().unwrap();
-    let my_id = document.get_element_by_id("myId").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-    let status = document.get_element_by_id("status").unwrap().dyn_into::<HtmlElement>().unwrap();
-    let ping_btn = document.get_element_by_id("pingBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
+    let my_id = web_sys::window().unwrap().document().unwrap().get_element_by_id("myId").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+    let ping_btn = web_sys::window().unwrap().document().unwrap().get_element_by_id("pingBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
 
     // onicecandidate
     let pc_clone = pc.clone();
@@ -67,7 +87,6 @@ fn setup(pc: &RtcPeerConnection) {
 
     // oniceconnectionstatechange
     let pc_clone = pc.clone();
-    let status_clone = status.clone();
     let onconnectionstatechange_callback = Closure::wrap(Box::new(move || {
         let state_str = match pc_clone.connection_state() {
             RtcPeerConnectionState::New => "new",
@@ -78,7 +97,7 @@ fn setup(pc: &RtcPeerConnection) {
             RtcPeerConnectionState::Closed => "closed",
             _ => "unknown",
         };
-        status_clone.set_text_content(Some(&format!("Connection: {state_str}")));
+        set_status(&format!("Connection: {}", state_str));
     }) as Box<dyn FnMut()>);
     pc.set_onconnectionstatechange(Some(onconnectionstatechange_callback.as_ref().unchecked_ref()));
     onconnectionstatechange_callback.forget();
@@ -104,9 +123,9 @@ fn setup(pc: &RtcPeerConnection) {
         channel.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
         onmessage_callback.forget();
 
-        APP_STATE.with(|state| {
-            state.borrow_mut().data_channel = Some(channel);
-        });
+        // APP_STATE.with(|state| {
+        //     state.borrow_mut().data_channel = Some(channel);
+        // });
     }) as Box<dyn FnMut(RtcDataChannelEvent)>);
     pc.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
     ondatachannel_callback.forget();
@@ -126,34 +145,22 @@ pub fn run() -> Result<(), JsValue> {
     head.append_child(&style)?;
     
     body.set_inner_html(HTML);
-    // Get the offer button and set up click handler
-    let offer_btn: HtmlButtonElement = document
-        .get_element_by_id("offerBtn")
-        .ok_or_else(|| JsValue::from_str("Offer button not found"))?
-        .dyn_into()?;
 
-    let on_offer_click = Closure::wrap(Box::new(move || {
+    let offer_btn = document.get_element_by_id("offerBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
+    let offer_btn_callback = Closure::wrap(Box::new(move || {
         wasm_bindgen_futures::spawn_local(async move {
-            // Fix 2: Use proper ICE server configuration
-            let mut ice_server = RtcIceServer::new();
+            let ice_server = RtcIceServer::new();
             ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
-            
             let configuration = RtcConfiguration::new();
             configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
-            
-            // Fix 3: Use correct constructor with configuration
-            let pc = RtcPeerConnection::new_with_configuration(&configuration)
-                .map_err(|e| JsValue::from_str(&format!("Failed to create peer connection: {:?}", e))).unwrap();
-            
+            let pc = RtcPeerConnection::new_with_configuration(&configuration).unwrap();
             setup(&pc);
             
-            // Fix 4: Proper error handling for data channel creation
             let channel = pc.create_data_channel("chat");
             
-            let document = web_sys::window().unwrap().document().unwrap();
-            let ping_btn: HtmlButtonElement = document.get_element_by_id("pingBtn").unwrap().dyn_into().unwrap();
+            let ping_btn = web_sys::window().unwrap().document().unwrap().get_element_by_id("pingBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
             
-            // Data channel open handler
+            // onopen
             let ping_clone = ping_btn.clone();
             let on_open = Closure::wrap(Box::new(move || {
                 ping_clone.set_disabled(false);
@@ -162,7 +169,7 @@ pub fn run() -> Result<(), JsValue> {
             channel.set_onopen(Some(on_open.as_ref().unchecked_ref()));
             on_open.forget();
             
-            // Data channel message handler
+            // onmessage
             let on_message = Closure::wrap(Box::new(move |e: MessageEvent| {
                 if let Some(data) = e.data().as_string() {
                     append_chatbox(&format!("Peer: {}", data));
@@ -171,7 +178,6 @@ pub fn run() -> Result<(), JsValue> {
             channel.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
             on_message.forget();
             
-            // Create and set offer
             match JsFuture::from(pc.create_offer()).await {
                 Ok(js_offer) => {
                     let offer: RtcSessionDescriptionInit = js_offer.into();
@@ -181,16 +187,12 @@ pub fn run() -> Result<(), JsValue> {
                 }
                 Err(e) => console::error_1(&e),
             }
-            
-            // Update status
-            let status: HtmlElement = document.get_element_by_id("status").unwrap().dyn_into().unwrap();
-            status.set_text_content(Some("Offer created! Share your ID."));
+
+            set_status("Offer created! Share your ID.");
         });
     }) as Box<dyn FnMut()>);
-
-    offer_btn.set_onclick(Some(on_offer_click.as_ref().unchecked_ref()));
-    on_offer_click.forget();
-
+    offer_btn.set_onclick(Some(offer_btn_callback.as_ref().unchecked_ref()));
+    offer_btn_callback.forget();
 
     Ok(())
 }

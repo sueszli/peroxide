@@ -14,15 +14,23 @@ use std::cell::RefCell;
 
 const STYLING: &str = r#"
     * { margin: 0; padding: 0; }
-
-    *::-webkit-scrollbar { display: none !important; } /* hide scrollbar */
+    *::-webkit-scrollbar { display: none !important; }
     
     body {
         max-width: 800px; margin: 0 auto; padding: 0 1rem;
         font-family: 'Lucida Console', monospace;
     }
 
-    section { margin-bottom: 2rem; margin-top: 1rem; }
+    #statusbar {
+        background-color: #f0f0f0;
+        padding: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    section {
+        margin-bottom: 2rem;
+        margin-top: 1rem;
+    }
 
     button {
         cursor: pointer;
@@ -31,17 +39,44 @@ const STYLING: &str = r#"
         border: 1px solid;
     }
 
-    textarea { width: 100%; height: 3rem; }
-    #chat_box { height: 200px; overflow-y: auto; border: 1px solid; }
+    textarea {
+        width: 100%;
+        height: 4rem;
+    }
+
+    #decision div {
+        display: flex;
+        justify-content: center;
+    }
+    #decision button {
+        margin: 1rem 1rem;
+        width: 20vw;
+    }
+
+    section h2 {
+        margin-bottom: 2rem;
+    }
+    section p {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+    }
+
+    #chat_box {
+        height: 200px;
+        overflow-y: auto;
+        border: 1px solid;
+    }
 "#;
 
 const HTML: &str = r#"
-    <section>
+    <section id="statusbar">
         <span>Status: <span id="status">Ready</span></span>
     </section>
 
     <section id="decision">
         <h2>Decision</h2>
+
+        <p>Welcome. Do you want to host this session or join as a guest?</p>
 
         <div>
             <button id="host_selection">Host</button>
@@ -52,11 +87,11 @@ const HTML: &str = r#"
     <section id="host">
         <h2>Host</h2>
 
-        <div>Send this invite code to your guest:</div>
+        <p>Send this invite code to your guest:</p>
 
         <textarea class="my_id" readonly></textarea>
 
-        <div>Enter your guest's response code:</div>
+        <p>Enter your guest's response code:</p>
 
         <textarea class="peer_id" placeholder="Enter here"></textarea>
         <button class="connect">Connect</button>
@@ -65,12 +100,12 @@ const HTML: &str = r#"
     <section id="guest">
         <h2>Guest</h2>
 
-        <div>Enter your host's invite code:</div>
+        <p>Enter your host's invite code:</p>
 
         <textarea class="peer_id" placeholder="Enter here"></textarea>
         <button class="connect">Connect</button>
         
-        <div>Send this response code to host:</div>
+        <p>Send this response code to your host:</p>
 
         <textarea class="my_id" readonly></textarea>
     </section>

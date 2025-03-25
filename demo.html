@@ -15,14 +15,10 @@
     <button id="pingBtn" disabled>Send Ping</button> 
 </body>
 <script>
-    let peerConnection = null;
-
     const append = msg => {
-        const chatBox = document.getElementById('chatBox');
         const div = document.createElement('div');
         div.textContent = msg;
-        chatBox.appendChild(div);
-        chatBox.scrollTop = chatBox.scrollHeight;
+        document.getElementById('chatBox').appendChild(div);
     };
 
     const createPeerConnection = () => {
@@ -41,26 +37,25 @@
         return pc;
     };
 
-    const setupDataChannel = (pc, channel) => {
-        const pingBtn = document.getElementById('pingBtn');
-        
-        channel.onopen = () => {
-            pingBtn.disabled = false;
+    const setupDataChannel = (pc, dc) => {
+        dc.onopen = () => {
+            document.getElementById('pingBtn').disabled = false;
             append('Connected!');
         };
-        
-        channel.onmessage = e => append(`Peer: ${e.data}`);
-        
-        // Store reference on PC instead of global variable
-        pc.dataChannel = channel;
-        return channel;
+        dc.onmessage = e => {
+            append(`Peer: ${e.data}`);
+        };
+        return dc
     };
 
+    let PEER_CONNECTION = null;
+    let DATA_CHANNEL = null;
+
     document.getElementById('offerBtn').onclick = async () => {
-        peerConnection = createPeerConnection();
-        const dc = setupDataChannel(peerConnection, peerConnection.createDataChannel('chat'));
+        PEER_CONNECTION = createPeerConnection();
+        DATA_CHANNEL = setupDataChannel(PEER_CONNECTION, PEER_CONNECTION.createDataChannel('chat'));
         
-        await peerConnection.setLocalDescription(await peerConnection.createOffer());
+        await PEER_CONNECTION.setLocalDescription(await PEER_CONNECTION.createOffer());
         document.getElementById('status').textContent = 'Offer created! Share your ID.';
     };
 
@@ -68,23 +63,22 @@
         const sdp = JSON.parse(document.getElementById('peerId').value);
         
         if (sdp.type === 'offer') {
-            // Answering a remote offer
-            peerConnection = createPeerConnection();
-            peerConnection.ondatachannel = e => setupDataChannel(peerConnection, e.channel);
-            
-            await peerConnection.setRemoteDescription(sdp);
-            await peerConnection.setLocalDescription(await peerConnection.createAnswer());
+            // answering a remote offer
+            PEER_CONNECTION = createPeerConnection();
+            PEER_CONNECTION.ondatachannel = e => DATA_CHANNEL = setupDataChannel(PEER_CONNECTION, e.channel);
+            await PEER_CONNECTION.setRemoteDescription(sdp);
+            await PEER_CONNECTION.setLocalDescription(await PEER_CONNECTION.createAnswer());
             document.getElementById('status').textContent = 'Answered offer! Share your ID back.';
         } else if (sdp.type === 'answer') {
-            // Receiving answer to our offer
-            await peerConnection.setRemoteDescription(sdp);
+            // receiving answer to our offer
+            await PEER_CONNECTION.setRemoteDescription(sdp);
             document.getElementById('status').textContent = 'Connecting...';
         }
     };
 
     document.getElementById('pingBtn').onclick = () => {
-        if (peerConnection?.dataChannel?.readyState === 'open') {
-            peerConnection.dataChannel.send('ping');
+        if (DATA_CHANNEL && DATA_CHANNEL.readyState === 'open') {
+            DATA_CHANNEL.send('ping');
             append('You: ping');
         }
     };

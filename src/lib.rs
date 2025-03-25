@@ -22,7 +22,17 @@ const STYLING: &str = r#"
         font-family: 'Lucida Console', monospace;
         box-sizing: border-box;
     }
-    button { font-family: 'Lucida Console', monospace; padding: 0.5rem; }
+    button {
+        font-family: 'Lucida Console', monospace;
+        padding: 0.5rem;
+        margin: 0.5rem;
+        border: 1px solid;
+        cursor: pointer;
+
+        background-color: #f0f0f0;
+        border-color: #d0d0d0;
+        color: #000;
+    }
 
     textarea { width: 100%; height: 3rem; }
     #chatBox { height: 200px; overflow-y: auto; border: 1px solid; }

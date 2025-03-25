@@ -36,14 +36,14 @@ more users would be impractical without a signaling server.
         chatBox.scrollTop = chatBox.scrollHeight;
     };
     
-    const setup = _pc => {
+    const setup = pcon => {
         const myId = document.getElementById('myId');
         const status = document.getElementById('status');
         const pingBtn = document.getElementById('pingBtn');
-
-        _pc.onicecandidate = e => { if (!e.candidate) myId.value = JSON.stringify(_pc.localDescription) };
-        _pc.onconnectionstatechange = () => status.textContent = `Connection: ${_pc.connectionState}`;
-        _pc.ondatachannel = e => {
+        
+        pcon.onicecandidate = e => { if (!e.candidate) myId.value = JSON.stringify(pcon.localDescription) };
+        pcon.onconnectionstatechange = () => status.textContent = `Connection: ${pcon.connectionState}`;
+        pcon.ondatachannel = e => {
             e.channel.onopen = () => { pingBtn.disabled = false; append('Connected!') };
             e.channel.onmessage = e => append(`Peer: ${e.data}`);
         };

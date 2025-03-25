@@ -3,6 +3,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
 use js_sys::*;
 use web_sys::*;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 // 
 // rendering
@@ -60,7 +62,6 @@ fn append_chat_box(message: &str) {
 //
 
 fn setup_data_channel(dc: &RtcDataChannel) {
-    // on open
     let onopen_callback = Closure::wrap(Box::new(move || {
         enable_chat_box();
         append_chat_box("Connected!");
@@ -68,7 +69,6 @@ fn setup_data_channel(dc: &RtcDataChannel) {
     dc.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
     
-    // on message
     let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
         if let Some(data) = event.data().as_string() {
             append_chat_box(&format!("Peer: {}", data));
@@ -85,7 +85,6 @@ fn create_peer_connection() -> RtcPeerConnection {
     configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
     let pc = RtcPeerConnection::new_with_configuration(&configuration).unwrap();
 
-    // on ice candidate
     let pc_clone = pc.clone();
     let onicecandidate_callback = Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
         if event.candidate().is_none() {
@@ -98,7 +97,6 @@ fn create_peer_connection() -> RtcPeerConnection {
     pc.set_onicecandidate(Some(onicecandidate_callback.as_ref().unchecked_ref()));
     onicecandidate_callback.forget();
     
-    // on connection state change
     let pc_clone = pc.clone();
     let onconnectionstatechange_callback = Closure::wrap(Box::new(move || {
         let state_str = match pc_clone.connection_state() {
@@ -118,9 +116,11 @@ fn create_peer_connection() -> RtcPeerConnection {
     return pc;
 }
 
+
+
 #[wasm_bindgen(start)]
 pub fn run() -> Result<(), JsValue> {
-    console_error_panic_hook::set_once(); // redirect panics to console.error
+    console_error_panic_hook::set_once(); // panics to console.error
 
     let document = web_sys::window().unwrap().document().unwrap();
     let style = document.create_element("style")?;
@@ -128,20 +128,120 @@ pub fn run() -> Result<(), JsValue> {
     document.head().unwrap().append_child(&style)?;
     document.body().unwrap().set_inner_html(HTML);
 
-    let offer_btn = document.get_element_by_id("offerBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
-    let offer_btn_callback = Closure::wrap(Box::new(move || {
-        wasm_bindgen_futures::spawn_local(async move {
-            let PEER_CONNECTION = create_peer_connection();
-            let DATA_CHANNEL = PEER_CONNECTION.create_data_channel("chat");
-            setup_data_channel(&DATA_CHANNEL);
+    type PeerConnection = Rc<RefCell<Option<RtcPeerConnection>>>;
+    type DataChannel = Rc<RefCell<Option<RtcDataChannel>>>;
+    let peer_connection: PeerConnection = Rc::new(RefCell::new(None));
+    let data_channel: DataChannel = Rc::new(RefCell::new(None));
+
+    // let offer_btn = document.get_element_by_id("offerBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
+    // let offer_btn_callback = Closure::wrap(Box::new(move || {
+    //     wasm_bindgen_futures::spawn_local(async move {
+    //         let PEER_CONNECTION = create_peer_connection();
+    //         let DATA_CHANNEL = PEER_CONNECTION.create_data_channel("chat");
+    //         setup_data_channel(&DATA_CHANNEL);
             
-            let offer = JsFuture::from(PEER_CONNECTION.create_offer()).await.unwrap();
-            JsFuture::from(PEER_CONNECTION.set_local_description(&offer.into())).await.unwrap();
-            set_status("Offer created! Share your ID.");
-        });
-    }) as Box<dyn FnMut()>);
-    offer_btn.set_onclick(Some(offer_btn_callback.as_ref().unchecked_ref()));
-    offer_btn_callback.forget();
+    //         let offer = JsFuture::from(PEER_CONNECTION.create_offer()).await.unwrap();
+    //         JsFuture::from(PEER_CONNECTION.set_local_description(&offer.into())).await.unwrap();
+    //         set_status("Offer created! Share your ID.");
+    //     });
+    // }) as Box<dyn FnMut()>);
+    // offer_btn.set_onclick(Some(offer_btn_callback.as_ref().unchecked_ref()));
+    // offer_btn_callback.forget();
+
+    {
+        let pc = peer_connection.clone();
+        let dc = data_channel.clone();
+        let btn = document.get_element_by_id("offerBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
+        
+        let closure = Closure::wrap(Box::new(move || {
+            let pc_clone = pc.clone();
+            let dc_clone = dc.clone();
+            
+            wasm_bindgen_futures::spawn_local(async move {
+                let pc = create_peer_connection();
+                let dc = pc.create_data_channel("chat");
+                
+                setup_data_channel(&dc);
+                *pc_clone.borrow_mut() = Some(pc.clone());
+                *dc_clone.borrow_mut() = Some(dc.clone());
+
+                let offer = JsFuture::from(pc.create_offer()).await.unwrap();
+                JsFuture::from(pc.set_local_description(&offer.into())).await.unwrap();
+                set_status("Offer created! Share your ID.");
+            });
+        }) as Box<dyn FnMut()>);
+        
+        btn.set_onclick(Some(closure.as_ref().unchecked_ref()));
+        closure.forget();
+    }
+
+    {
+        let pc = peer_connection.clone();
+        let dc = data_channel.clone();
+        let btn = document.get_element_by_id("connectBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
+        
+        let closure = Closure::wrap(Box::new(move || {
+            let pc_clone = pc.clone();
+            let dc_clone = dc.clone();
+            
+            wasm_bindgen_futures::spawn_local(async move {
+                let peer_id = window().unwrap().document().unwrap().get_element_by_id("peerId").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
+                let sdp = js_sys::JSON::parse(&peer_id).unwrap();
+                let sdp_type = Reflect::get(&sdp, &"type".into()).unwrap().as_string().unwrap();
+
+                if sdp_type == "offer" {
+                    let pc = create_peer_connection();
+                    let dc_inner = dc_clone.clone();
+                    
+                    let ondatachannel = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
+                        let dc = e.channel();
+                        setup_data_channel(&dc);
+                        *dc_inner.borrow_mut() = Some(dc);
+                    }) as Box<dyn FnMut(RtcDataChannelEvent)>);
+                    
+                    pc.set_ondatachannel(Some(ondatachannel.as_ref().unchecked_ref()));
+                    ondatachannel.forget();
+
+                    JsFuture::from(pc.set_remote_description(&sdp.into())).await.unwrap();
+                    let answer = JsFuture::from(pc.create_answer()).await.unwrap();
+                    JsFuture::from(pc.set_local_description(&answer.into())).await.unwrap();
+                    
+                    *pc_clone.borrow_mut() = Some(pc);
+                    set_status("Answered offer! Share your ID back.");
+                
+                } else if sdp_type == "answer" {
+                    let promise = pc_clone.borrow()
+                        .as_ref()
+                        .unwrap()
+                        .set_remote_description(&sdp.into());
+                    JsFuture::from(promise).await.unwrap();
+                    set_status("Connecting...");
+                }
+            });
+        }) as Box<dyn FnMut()>);
+        
+        btn.set_onclick(Some(closure.as_ref().unchecked_ref()));
+        closure.forget();
+    }
+
+
+    {
+        let dc = data_channel.clone();
+        let btn = document.get_element_by_id("pingBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
+        
+        let closure = Closure::wrap(Box::new(move || {
+            if let Some(dc) = &*dc.borrow() {
+                if dc.ready_state() == RtcDataChannelState::Open {
+                    dc.send_with_str("ping").unwrap();
+                    append_chat_box("You: ping");
+                }
+            }
+        }) as Box<dyn FnMut()>);
+        
+        btn.set_onclick(Some(closure.as_ref().unchecked_ref()));
+        closure.forget();
+    }
+
 
     Ok(())
 }

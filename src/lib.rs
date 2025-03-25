@@ -70,14 +70,16 @@ fn set_my_id(id: &str) {
     let document = window().unwrap().document().unwrap();
     let my_id = document.get_element_by_id("myId").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
 
-    my_id.set_value(id);
+    let compressed = utils::compress_string(id);
+    my_id.set_value(&compressed);
 }
 
 fn get_peer_id() -> String {
     let document = window().unwrap().document().unwrap();
     let peer_id = document.get_element_by_id("peerId").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
 
-    return peer_id.value();
+    let compressed = peer_id.value();
+    return utils::decompress_string(&compressed);
 }
 
 fn set_status(message: &str) {
@@ -155,7 +157,7 @@ fn create_peer_connection() -> RtcPeerConnection {
             RtcPeerConnectionState::Closed => "closed",
             _ => "unknown",
         };
-        set_status(&format!("Connection: {}", state_str));
+        set_status(&format!("Connection {}", state_str));
     }) as Box<dyn FnMut()>);
     pc.set_onconnectionstatechange(Some(onconnectionstatechange_callback.as_ref().unchecked_ref()));
     onconnectionstatechange_callback.forget();

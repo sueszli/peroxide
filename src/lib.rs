@@ -53,7 +53,13 @@ fn append_chat_box(message: &str) {
 // logic
 //
 
-fn setup_pc(pc: &RtcPeerConnection) {
+fn create_peer_connection() -> RtcPeerConnection {
+    let ice_server = RtcIceServer::new();
+    ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
+    let configuration = RtcConfiguration::new();
+    configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
+    let pc = RtcPeerConnection::new_with_configuration(&configuration).unwrap();
+
     // on ice candidate: display my id
     let pc_clone = pc.clone();
     let onicecandidate_callback = Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
@@ -107,6 +113,8 @@ fn setup_pc(pc: &RtcPeerConnection) {
     }) as Box<dyn FnMut(RtcDataChannelEvent)>);
     pc.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
     ondatachannel_callback.forget();
+
+    return pc;
 }
 
 #[wasm_bindgen(start)]
@@ -122,19 +130,14 @@ pub fn run() -> Result<(), JsValue> {
     let offer_btn = document.get_element_by_id("offerBtn").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
     let offer_btn_callback = Closure::wrap(Box::new(move || {
         wasm_bindgen_futures::spawn_local(async move {
-            let ice_server = RtcIceServer::new();
-            ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
-            let configuration = RtcConfiguration::new();
-            configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
-            let pc = RtcPeerConnection::new_with_configuration(&configuration).unwrap();
-            setup_pc(&pc);
-            let channel = pc.create_data_channel("chat");            
+            let pc = create_peer_connection();
+            let dc = pc.create_data_channel("chat");            
 
             // on open
             let on_open = Closure::wrap(Box::new(move || {
                 append_chat_box("Connected!");
             }) as Box<dyn FnMut()>);
-            channel.set_onopen(Some(on_open.as_ref().unchecked_ref()));
+            dc.set_onopen(Some(on_open.as_ref().unchecked_ref()));
             on_open.forget();
             
             // on message
@@ -143,7 +146,7 @@ pub fn run() -> Result<(), JsValue> {
                     append_chat_box(&format!("Peer: {}", data));
                 }
             }) as Box<dyn FnMut(MessageEvent)>);
-            channel.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+            dc.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
             on_message.forget();
             
             match JsFuture::from(pc.create_offer()).await {

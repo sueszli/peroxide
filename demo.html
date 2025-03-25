@@ -1,13 +1,3 @@
-<!-- 
-demo for 2 users manually exchanging keys.
-more users would be impractical without a signaling server.
-
-- A: creates offer, shares with B
-- B: enters A's offer, creates answer, shares with A
-- A: enters B's answer
-- A & B: connected, can send messages
--->
-
 <!DOCTYPE html>
 <html>
 <style>
@@ -25,67 +15,76 @@ more users would be impractical without a signaling server.
     <button id="pingBtn" disabled>Send Ping</button> 
 </body>
 <script>
-    let pc, dc;
+    let peerConnection = null;
 
     const append = msg => {
         const chatBox = document.getElementById('chatBox');
-
         const div = document.createElement('div');
         div.textContent = msg;
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
     };
 
-    const setupDC = (channel) => {
-        const pingBtn = document.getElementById('pingBtn');
+    const createPeerConnection = () => {
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
 
+        pc.onicecandidate = e => {
+            if (!e.candidate) {
+                document.getElementById('myId').value = JSON.stringify(pc.localDescription);
+            }
+        };
+
+        pc.onconnectionstatechange = () => {
+            document.getElementById('status').textContent = `Connection: ${pc.connectionState}`;
+        };
+
+        return pc;
+    };
+
+    const setupDataChannel = (pc, channel) => {
+        const pingBtn = document.getElementById('pingBtn');
+        
         channel.onopen = () => {
             pingBtn.disabled = false;
             append('Connected!');
         };
-        channel.onmessage = e => {
-            append(`Peer: ${e.data}`);
-        }
-        return channel;
-    }
-
-    const getPC = () => {
-        const myId = document.getElementById('myId');
-        const status = document.getElementById('status');
         
-        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-        pc.onicecandidate = e => { if (!e.candidate) myId.value = JSON.stringify(pc.localDescription) };
-        pc.onconnectionstatechange = () => status.textContent = `Connection: ${pc.connectionState}`;
-        pc.ondatachannel = e => dc = setupDC(e.channel);
-        return pc;
+        channel.onmessage = e => append(`Peer: ${e.data}`);
+        
+        // Store reference on PC instead of global variable
+        pc.dataChannel = channel;
+        return channel;
     };
 
     document.getElementById('offerBtn').onclick = async () => {
-        pc = getPC();
-        dc = setupDC(pc.createDataChannel('chat'));
-        await pc.setLocalDescription(await pc.createOffer());
+        peerConnection = createPeerConnection();
+        const dc = setupDataChannel(peerConnection, peerConnection.createDataChannel('chat'));
+        
+        await peerConnection.setLocalDescription(await peerConnection.createOffer());
         document.getElementById('status').textContent = 'Offer created! Share your ID.';
     };
 
     document.getElementById('connectBtn').onclick = async () => {
-        const peerId = document.getElementById('peerId');
-        const status = document.getElementById('status');
-
-        const sdp = JSON.parse(peerId.value);
+        const sdp = JSON.parse(document.getElementById('peerId').value);
+        
         if (sdp.type === 'offer') {
-            pc = getPC();
-            await pc.setRemoteDescription(sdp);
-            await pc.setLocalDescription(await pc.createAnswer());
-            status.textContent = 'Answered offer! Share your ID back.';
+            // Answering a remote offer
+            peerConnection = createPeerConnection();
+            peerConnection.ondatachannel = e => setupDataChannel(peerConnection, e.channel);
+            
+            await peerConnection.setRemoteDescription(sdp);
+            await peerConnection.setLocalDescription(await peerConnection.createAnswer());
+            document.getElementById('status').textContent = 'Answered offer! Share your ID back.';
         } else if (sdp.type === 'answer') {
-            await pc.setRemoteDescription(sdp);
-            status.textContent = 'Connecting...';
+            // Receiving answer to our offer
+            await peerConnection.setRemoteDescription(sdp);
+            document.getElementById('status').textContent = 'Connecting...';
         }
     };
 
     document.getElementById('pingBtn').onclick = () => {
-        if (dc && dc.readyState === 'open') {
-            dc.send('ping');
+        if (peerConnection?.dataChannel?.readyState === 'open') {
+            peerConnection.dataChannel.send('ping');
             append('You: ping');
         }
     };

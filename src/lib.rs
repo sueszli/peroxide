@@ -15,7 +15,6 @@ use std::cell::RefCell;
 const STYLING: &str = r#"
     * { margin: 0; padding: 0; }
     *::-webkit-scrollbar { display: none !important; }
-    
     body {
         max-width: 800px; margin: 0 auto; padding: 0 1rem;
         font-family: 'Lucida Console', monospace;
@@ -27,42 +26,41 @@ const STYLING: &str = r#"
         margin-bottom: 1rem;
     }
 
-    section {
-        margin-bottom: 2rem;
-        margin-top: 1rem;
-    }
-
-    button {
-        cursor: pointer;
-        font-family: 'Lucida Console', monospace;
-        padding: 0.5rem;
-        border: 1px solid;
-    }
-
-    textarea {
-        width: 100%;
-        height: 4rem;
-    }
-
     #decision div {
         display: flex;
         justify-content: center;
     }
     #decision button {
         margin: 1rem 1rem;
-        width: 20vw;
+        width: 30%;
     }
 
-    section h2 {
+    h2 {
+        margin-top: 2rem;
+    }
+    p {
+        margin-top: 2rem;
         margin-bottom: 2rem;
     }
-    section p {
-        margin-top: 2rem;
-        margin-bottom: 1rem;
+    textarea {
+        width: 100%;
+        height: 4rem;
+    }
+    button {
+        cursor: pointer;
+        font-family: 'Lucida Console', monospace;
+        padding: 0.5rem;
+
+        background-color: #f0f0f0;
+        border: 1px solid;
+        width: 20%;
     }
 
     #chat_box {
-        height: 200px;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+
+        height: 400px;
         overflow-y: auto;
         border: 1px solid;
     }
@@ -74,9 +72,9 @@ const HTML: &str = r#"
     </section>
 
     <section id="decision">
-        <h2>Decision</h2>
+        <h2>Choose your role</h2>
 
-        <p>Welcome. Do you want to host this session or join as a guest?</p>
+        <p>This application establishes a peer-to-peer connection between two users. You can choose to be the host or the guest.</p>
 
         <div>
             <button id="host_selection">Host</button>
@@ -255,21 +253,18 @@ pub fn run() -> Result<(), JsValue> {
     console_error_panic_hook::set_once(); // panics to console.error
     
     init_ui();
-
-    let sections = vec!["host", "guest", "chat"];
-    for section in sections {
-        disable_section(section);
-    }
+    
+    vec!["host", "guest", "chat"].iter().for_each(|&section| disable_section(section));
 
     {
-        let guest_selector = web_sys::window().unwrap().document().unwrap().get_element_by_id("guest_selection").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
-        let guest_selector_callback = Closure::wrap(Box::new(move || {
+        let btn = web_sys::window().unwrap().document().unwrap().get_element_by_id("guest_selection").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
+        let btn_callback = Closure::wrap(Box::new(move || {
             disable_section("decision");
             enable_section("guest");
             clear_my_id();
         }) as Box<dyn FnMut()>);
-        guest_selector.set_onclick(Some(guest_selector_callback.as_ref().unchecked_ref()));
-        guest_selector_callback.forget();
+        btn.set_onclick(Some(btn_callback.as_ref().unchecked_ref()));
+        btn_callback.forget();
     }
 
     let peer_connection: Rc<RefCell<Option<RtcPeerConnection>>> = Rc::new(RefCell::new(None));

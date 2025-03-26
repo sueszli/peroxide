@@ -19,8 +19,7 @@ const STYLING: &str = r#"
         max-width: 800px; margin: 0 auto; padding: 0 1rem;
         font-family: 'Lucida Console', monospace;
     }
-
-    #statusbar {
+    nav {
         background-color: #f0f0f0;
         padding: 0.5rem;
         margin-bottom: 1rem;
@@ -67,9 +66,9 @@ const STYLING: &str = r#"
 "#;
 
 const HTML: &str = r#"
-    <section id="statusbar">
+    <nav>
         <span>Status: <span id="status">Ready</span></span>
-    </section>
+    </nav>
 
     <section id="decision">
         <h2>Choose your role</h2>

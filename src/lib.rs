@@ -56,7 +56,7 @@ const STYLING: &str = r#"
         width: 20%;
     }
 
-    #chat_box {
+    #logbox {
         margin-top: 2rem;
         margin-bottom: 1rem;
 
@@ -108,10 +108,10 @@ const HTML: &str = r#"
         <textarea class="my_id" readonly></textarea>
     </section>
 
-    <section id="chat">
-        <h2>Chat</h2>
+    <section id="log">
+        <h2>Log</h2>
 
-        <div id="chat_box"></div>
+        <div id="logbox"></div>
         <button id="ping">Send Ping</button> 
     </section>
 "#;
@@ -165,15 +165,15 @@ fn set_status(message: &str) {
     status.set_text_content(Some(message));
 }
 
-fn append_chat_box(message: &str) {
+fn append_log(message: &str) {
     let document = window().unwrap().document().unwrap();
-    let chatbox = document.get_element_by_id("chat_box").unwrap();
+    let elem = document.get_element_by_id("logbox").unwrap();
 
     let div = document.create_element("div").unwrap();
     div.set_text_content(Some(message));
-    chatbox.append_child(&div).unwrap();
-    let chatbox: HtmlElement = chatbox.dyn_into().unwrap();
-    chatbox.set_scroll_top(chatbox.scroll_height());
+    elem.append_child(&div).unwrap();
+    let elem: HtmlElement = elem.dyn_into().unwrap();
+    elem.set_scroll_top(elem.scroll_height());
 }
 
 fn enable_section(section: &str) {
@@ -196,14 +196,14 @@ fn setup_data_channel(dc: &RtcDataChannel) {
     let onopen_callback = Closure::wrap(Box::new(move || {
         disable_section("host");
         disable_section("guest");
-        enable_section("chat");
+        enable_section("log");
     }) as Box<dyn FnMut()>);
     dc.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
     
     let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
         if let Some(data) = event.data().as_string() {
-            append_chat_box(&format!("Peer: {}", data));
+            append_log(&format!("Peer: {}", data));
         }
     }) as Box<dyn FnMut(MessageEvent)>);
     dc.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
@@ -254,7 +254,7 @@ pub fn run() -> Result<(), JsValue> {
     
     init_ui();
     
-    vec!["host", "guest", "chat"].iter().for_each(|&section| disable_section(section));
+    vec!["host", "guest", "log"].iter().for_each(|&section| disable_section(section));
 
     {
         let btn = web_sys::window().unwrap().document().unwrap().get_element_by_id("guest_selection").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
@@ -284,7 +284,7 @@ pub fn run() -> Result<(), JsValue> {
                 enable_section("host");
 
                 let pc = create_peer_connection();
-                let dc = pc.create_data_channel("chat");
+                let dc = pc.create_data_channel("app");
                 
                 setup_data_channel(&dc);
                 *pc_clone.borrow_mut() = Some(pc.clone());
@@ -352,7 +352,7 @@ pub fn run() -> Result<(), JsValue> {
             if let Some(dc) = &*dc.borrow() {
                 if dc.ready_state() == RtcDataChannelState::Open {
                     dc.send_with_str("ping").unwrap();
-                    append_chat_box("You: ping");
+                    append_log("You: ping");
                 }
             }
         }) as Box<dyn FnMut()>);

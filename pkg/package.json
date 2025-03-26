@@ -1,0 +1,15 @@
+{
+  "name": "peroxide",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "peroxide_bg.wasm",
+    "peroxide.js",
+    "peroxide.d.ts"
+  ],
+  "main": "peroxide.js",
+  "types": "peroxide.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

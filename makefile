@@ -1,10 +1,12 @@
 .PHONY: build
 build:
-	# cargo install wasm-pack
 	wasm-pack build --target web
-
-	# npm install -g live-server
 	live-server --port=8080 --entry-file=index.html
+
+.PHONY: build-release
+build-release:
+	wasm-pack build --release --target web
+	rm pkg/.gitignore
 
 .PHONY: up
 up:

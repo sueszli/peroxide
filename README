@@ -1,7 +1,4 @@
-per·​ox·​ide: a chemical compound, containing two oxygen atoms linked together by a single covalent bond
-
-- peer: direct p2p communication via the webRTC protocol
-- oxide: webAssembly compiled from Rust
+check it out: https://sueszli.github.io/peroxide/
 
       O-O-H
      //
@@ -12,6 +9,11 @@ Cl--{/
      /       \ 
      \\     //
       \_____/
+
+per·​ox·​ide: a chemical compound, containing two oxygen atoms linked together by a single covalent bond
+
+- peer: direct p2p communication via the webRTC protocol
+- oxide: webAssembly compiled from Rust
 
 useful links:
 

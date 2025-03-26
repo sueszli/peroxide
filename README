@@ -1,6 +1,6 @@
 live demo: https://sueszli.github.io/peroxide/
 
-peroxide enables seamless peer-to-peer communication over the web, harnessing the power of Rust and WebRTC for low-latency, high-performance data exchange.
+peroxide enables seamless peer-to-peer communication over the web, harnessing the power of Rust and WebRTC for low latency and high performance.
 
       O-O-H
      //

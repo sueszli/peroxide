@@ -56,6 +56,16 @@ const STYLING: &str = r#"
         width: 20%;
     }
 
+    #log #wrapper {
+        display: flex;
+        justify-content: center;
+    }
+    #log textarea {
+        width: 80%;
+    }
+    #log button {
+        width: 20%;
+    }
     #logbox {
         margin-top: 2rem;
         margin-bottom: 1rem;
@@ -109,11 +119,14 @@ const HTML: &str = r#"
     </section>
 
     <section id="log">
-        <h2>Log</h2>
+        <h2>Chat</h2>
 
         <div id="logbox"></div>
-        <textarea id="message" placeholder="Enter message"></textarea>
-        <button id="send">Send</button> 
+
+        <div id="wrapper">
+            <textarea id="message" placeholder="Enter message"></textarea>
+            <button id="send">Send</button> 
+        </div>
     </section>
 "#;
 

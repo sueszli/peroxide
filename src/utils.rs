@@ -1,6 +1,6 @@
-use std::io::{Read, Write};
+use base64::prelude::*;
 use flate2::{Compression, write::ZlibEncoder};
-use base64::prelude::*; 
+use std::io::{Read, Write};
 
 pub fn compress_string(sdp: &str) -> String {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());

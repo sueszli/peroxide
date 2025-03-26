@@ -255,31 +255,11 @@ fn create_peer_connection() -> RtcPeerConnection {
     return pc;
 }
 
-fn show_keypresses() {
-    let document = window().unwrap().document().unwrap();
-    let body = document.body().unwrap();
-
-    let keypresses = document.create_element("span").unwrap();
-    keypresses.set_text_content(Some(""));
-    let nav = document.query_selector("nav").unwrap().unwrap();
-    nav.append_child(&keypresses).unwrap();
-
-    let onkeydown_callback = Closure::wrap(Box::new(move |event: KeyboardEvent| {
-        let keypresses = document.query_selector("nav span").unwrap().unwrap();
-        let key = event.key();
-        let text = keypresses.text_content().unwrap();
-        keypresses.set_text_content(Some(format!("{}{}", text, key).as_str()));
-    }) as Box<dyn FnMut(KeyboardEvent)>);
-    body.set_onkeydown(Some(onkeydown_callback.as_ref().unchecked_ref()));
-    onkeydown_callback.forget();
-}
-
 #[wasm_bindgen(start)]
 pub fn run() -> Result<(), JsValue> {
     console_error_panic_hook::set_once(); // panics to console.error
     
     init_ui();
-    show_keypresses();
 
     vec!["host", "guest", "log"].iter().for_each(|&section| disable_section(section));
 

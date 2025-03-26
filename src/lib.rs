@@ -112,7 +112,8 @@ const HTML: &str = r#"
         <h2>Log</h2>
 
         <div id="logbox"></div>
-        <button id="ping">Send Ping</button> 
+        <textarea id="message" placeholder="Enter message"></textarea>
+        <button id="send">Send</button> 
     </section>
 "#;
 
@@ -163,6 +164,12 @@ fn set_status(message: &str) {
     let status = document.get_element_by_id("status").unwrap();
 
     status.set_text_content(Some(message));
+}
+
+fn get_message() -> String {
+    let document = window().unwrap().document().unwrap();
+    let message = document.get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+    return message.value();
 }
 
 fn append_log(message: &str) {
@@ -345,14 +352,15 @@ pub fn run() -> Result<(), JsValue> {
     }
 
     {
-        let btn = web_sys::window().unwrap().document().unwrap().get_element_by_id("ping").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
+        let btn = web_sys::window().unwrap().document().unwrap().get_element_by_id("send").unwrap().dyn_into::<HtmlButtonElement>().unwrap();
         
         let dc = data_channel.clone();
         let btn_callback = Closure::wrap(Box::new(move || {
             if let Some(dc) = &*dc.borrow() {
                 if dc.ready_state() == RtcDataChannelState::Open {
-                    dc.send_with_str("ping").unwrap();
-                    append_log("You: ping");
+                    let msg = get_message();
+                    dc.send_with_str(&msg).unwrap();
+                    append_log(&format!("You: {}", msg));
                 }
             }
         }) as Box<dyn FnMut()>);

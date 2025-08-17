@@ -1,3 +1,4 @@
+use crate::dom;
 use js_sys::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -5,7 +6,6 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::*;
 use wasm_bindgen_futures::*;
 use web_sys::*;
-use crate::dom;
 
 /// Shows floating connection status notification. Doesn't disappear automatically.
 pub fn update_connection_status(status: &str) {

@@ -119,35 +119,25 @@ const HTML: &str = r#"
     </section>
 "#;
 
-fn init_ui() {
-    let head = dom::document().head().unwrap();
-    let body = dom::document().body().unwrap();
-    let style = dom::document().create_element("style").unwrap();
-    style.set_text_content(Some(STYLING));
-    head.append_child(&style).unwrap();
-
-    body.set_inner_html(HTML);
-}
-
-fn set_my_id(id: &str) {
+fn set_my_token(id: &str) {
     let elements = dom::document().get_elements_by_class_name("my_id").dyn_into::<HtmlCollection>().unwrap();
     for i in 0..elements.length() {
-        let host_id = elements.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+        let my_token = elements.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
 
         let compressed = utils::compress_string(id);
-        host_id.set_value(&compressed);
+        my_token.set_value(&compressed);
     }
 }
 
-fn clear_my_id() {
+fn clear_my_token() {
     let elems = dom::document().get_elements_by_class_name("my_id").dyn_into::<HtmlCollection>().unwrap();
     for i in 0..elems.length() {
-        let host_id = elems.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-        host_id.set_value("");
+        let my_token = elems.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+        my_token.set_value("");
     }
 }
 
-fn get_peer_id() -> String {
+fn get_peer_token() -> String {
     let elems = dom::document().get_elements_by_class_name("peer_id").dyn_into::<HtmlCollection>().unwrap();
     let ids = (0..elems.length()).map(|i| elems.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value()).collect::<Vec<String>>();
     let largest = ids.iter().max_by_key(|id| id.len()).unwrap().to_string();
@@ -158,7 +148,6 @@ fn get_message() -> String {
     let message = dom::document().get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
     return message.value();
 }
-
 fn clear_message() {
     let message = dom::document().get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
     message.set_value("");
@@ -210,23 +199,30 @@ fn setup_data_channel(dc: &RtcDataChannel) {
 pub fn run() -> Result<(), JsValue> {
     console_error_panic_hook::set_once(); // map panics to console.error
 
-    init_ui();
+    // init dom
+    let head = dom::document().head().unwrap();
+    let body = dom::document().body().unwrap();
+    let style = dom::document().create_element("style").unwrap();
+    style.set_text_content(Some(STYLING));
+    head.append_child(&style).unwrap();
+    body.set_inner_html(HTML);
 
     ui::show_connection_notification("🔴 Disconnected");
     ui::show_notification("");
 
-    // start with blank slate
     vec!["host", "guest", "log"].iter().for_each(|&section| disable_section(section));
 
+    // USER CHOSE GUEST MODE
     {
         let btn = dom::document().get_element_by_id("guest_selection").unwrap();
         dom::onclick(&btn, move || {
             disable_section("decision");
             enable_section("guest");
-            clear_my_id();
+            clear_my_token();
         });
     }
 
+    // USER CHOSE HOST MODE
     let peer_connection: Rc<RefCell<Option<RtcPeerConnection>>> = Rc::new(RefCell::new(None));
     let data_channel: Rc<RefCell<Option<RtcDataChannel>>> = Rc::new(RefCell::new(None));
 
@@ -243,7 +239,7 @@ pub fn run() -> Result<(), JsValue> {
                 disable_section("decision");
                 enable_section("host");
 
-                let pc = p2p::create_peer_connection(|json_str| set_my_id(&json_str), |state_str| ui::show_connection_notification(&state_str));
+                let pc = p2p::create_peer_connection(|json_str| set_my_token(&json_str), |state_str| ui::show_connection_notification(&state_str));
                 let dc = pc.create_data_channel("app");
 
                 setup_data_channel(&dc);
@@ -252,11 +248,12 @@ pub fn run() -> Result<(), JsValue> {
 
                 let offer = JsFuture::from(pc.create_offer()).await.unwrap();
                 JsFuture::from(pc.set_local_description(&offer.into())).await.unwrap();
-                ui::show_notification("Host offer created successfully! Share your ID.");
+                ui::show_notification("Created invite code! Share it with your Guest.");
             });
         });
     }
 
+    // CONNECT BUTTON PRESSED IN EITHER OF THOSE ROLES
     {
         let btns = dom::document().get_elements_by_class_name("connect");
         for i in 0..btns.length() {
@@ -269,11 +266,11 @@ pub fn run() -> Result<(), JsValue> {
                 let dc_clone = dc.clone();
 
                 wasm_bindgen_futures::spawn_local(async move {
-                    let sdp = js_sys::JSON::parse(&get_peer_id()).unwrap();
+                    let sdp = js_sys::JSON::parse(&get_peer_token()).unwrap();
                     let sdp_type = Reflect::get(&sdp, &"type".into()).unwrap().as_string().unwrap();
 
                     if sdp_type == "offer" {
-                        let pc = p2p::create_peer_connection(|handshake_json| set_my_id(&handshake_json), |state| ui::show_connection_notification(&state));
+                        let pc = p2p::create_peer_connection(|handshake_json| set_my_token(&handshake_json), |state| ui::show_connection_notification(&state));
                         let dc_inner = dc_clone.clone(); // remove this .clone() call
 
                         let ondatachannel = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
@@ -288,7 +285,7 @@ pub fn run() -> Result<(), JsValue> {
                         JsFuture::from(pc.set_local_description(&JsFuture::from(pc.create_answer()).await.unwrap().into())).await.unwrap();
 
                         *pc_clone.borrow_mut() = Some(pc);
-                        ui::show_notification("Answer created! Share your response code.");
+                        ui::show_notification("Created response code! Share it with your host.");
                     } else if sdp_type == "answer" {
                         let promise = pc_clone.borrow().as_ref().unwrap().set_remote_description(&sdp.into());
                         JsFuture::from(promise).await.unwrap();
@@ -299,7 +296,7 @@ pub fn run() -> Result<(), JsValue> {
         }
     }
 
-    // chatting stuff
+    // CONNECTION SUCCESSFUL, SHOWING CHAT UI
     {
         let text_area = dom::document().get_element_by_id("message").unwrap();
         let dc_clone = data_channel.clone();

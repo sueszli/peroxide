@@ -20,6 +20,7 @@ pub fn show_connection_notification(status: &str) {
                  top: 20px; \
                  left: 20px; \
                  height: 24px; \
+                 width: 130px; \
                  background-color: rgba(255, 255, 255, 0.95); \
                  border: 2px solid #333; \
                  border-radius: 20px; \
@@ -27,8 +28,8 @@ pub fn show_connection_notification(status: &str) {
                  font-size: 14px; \
                  font-weight: bold; \
                  z-index: 9999; \
-                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); \
-                 backdrop-filter: blur(5px); \
+                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); \
+                 backdrop-filter: blur(3px); \
                  display: flex; \
                  align-items: center; \
                  text-align: left; \
@@ -74,8 +75,8 @@ pub fn show_notification(message: &str) {
          font-size: 14px; \
          font-weight: bold; \
          z-index: 9999; \
-         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); \
-         backdrop-filter: blur(5px); \
+         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); \
+         backdrop-filter: blur(3px); \
          display: flex; \
          align-items: center; \
          justify-content: flex-start; \

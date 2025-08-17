@@ -29,7 +29,7 @@ const STYLING: &str = r#"
     }
 
     h2 {
-        margin-top: 5rem;
+        margin-top: 6rem;
     }
     p {
         margin-top: 2rem;
@@ -86,11 +86,11 @@ const HTML: &str = r#"
 
         <p>Send this invite code to your guest:</p>
 
-        <textarea class="my_id" readonly></textarea>
+        <textarea class="my_sdp" readonly></textarea>
 
         <p>Enter your guest's response code:</p>
 
-        <textarea class="peer_id" placeholder="Enter here"></textarea>
+        <textarea class="peer_sdp" placeholder="Enter here"></textarea>
         <button class="connect">Connect</button>
     </section>
 
@@ -99,12 +99,12 @@ const HTML: &str = r#"
 
         <p>Enter your host's invite code:</p>
 
-        <textarea class="peer_id" placeholder="Enter here"></textarea>
+        <textarea class="peer_sdp" placeholder="Enter here"></textarea>
         <button class="connect">Connect</button>
         
         <p>Send this response code to your host:</p>
 
-        <textarea class="my_id" readonly></textarea>
+        <textarea class="my_sdp" readonly></textarea>
     </section>
 
     <section id="log">
@@ -119,26 +119,26 @@ const HTML: &str = r#"
     </section>
 "#;
 
-fn set_my_token(id: &str) {
-    let elements = dom::document().get_elements_by_class_name("my_id").dyn_into::<HtmlCollection>().unwrap();
+fn set_my_sdp_str(id: &str) {
+    let elements = dom::document().get_elements_by_class_name("my_sdp").dyn_into::<HtmlCollection>().unwrap();
     for i in 0..elements.length() {
-        let my_token = elements.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+        let my_sdp_str = elements.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
 
         let compressed = utils::compress_string(id);
-        my_token.set_value(&compressed);
+        my_sdp_str.set_value(&compressed);
     }
 }
 
-fn clear_my_token() {
-    let elems = dom::document().get_elements_by_class_name("my_id").dyn_into::<HtmlCollection>().unwrap();
+fn clear_my_sdp_str() {
+    let elems = dom::document().get_elements_by_class_name("my_sdp").dyn_into::<HtmlCollection>().unwrap();
     for i in 0..elems.length() {
-        let my_token = elems.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-        my_token.set_value("");
+        let my_sdp_str = elems.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+        my_sdp_str.set_value("");
     }
 }
 
-fn get_peer_token() -> String {
-    let elems = dom::document().get_elements_by_class_name("peer_id").dyn_into::<HtmlCollection>().unwrap();
+fn get_peer_sdp_str() -> String {
+    let elems = dom::document().get_elements_by_class_name("peer_sdp").dyn_into::<HtmlCollection>().unwrap();
     let ids = (0..elems.length()).map(|i| elems.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value()).collect::<Vec<String>>();
     let largest = ids.iter().max_by_key(|id| id.len()).unwrap();
     return utils::decompress_string(&largest);
@@ -171,30 +171,6 @@ fn disable_section(section: &str) {
     section.set_attribute("style", "display: none;").unwrap();
 }
 
-//
-// logic
-//
-
-fn setup_data_channel(dc: &RtcDataChannel) {
-    let onopen_callback = Closure::wrap(Box::new(move || {
-        disable_section("host");
-        disable_section("guest");
-        enable_section("log");
-        ui::show_notification("Connection established successfully!");
-    }) as Box<dyn FnMut()>);
-    dc.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
-    onopen_callback.forget();
-
-    let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
-        if let Some(data) = event.data().as_string() {
-            append_log(&format!("Peer: {}", data));
-            console_log!("Message received: {}", data);
-        }
-    }) as Box<dyn FnMut(MessageEvent)>);
-    dc.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
-    onmessage_callback.forget();
-}
-
 #[wasm_bindgen(start)]
 pub fn run() -> Result<(), JsValue> {
     console_error_panic_hook::set_once(); // map panics to console.error
@@ -214,11 +190,12 @@ pub fn run() -> Result<(), JsValue> {
 
     // USER CHOSE GUEST MODE
     {
+        // hide stuff, wait for offer from host
         let btn = dom::document().get_element_by_id("guest_selection").unwrap();
         dom::onclick(&btn, move || {
             disable_section("decision");
             enable_section("guest");
-            clear_my_token();
+            clear_my_sdp_str();
         });
     }
 
@@ -227,7 +204,7 @@ pub fn run() -> Result<(), JsValue> {
     let data_channel: Rc<RefCell<Option<RtcDataChannel>>> = Rc::new(RefCell::new(None));
 
     {
-        let btn = dom::document().get_element_by_id("host_selection").unwrap();
+        let btn: Element = dom::document().get_element_by_id("host_selection").unwrap();
 
         let pc = peer_connection.clone();
         let dc = data_channel.clone();
@@ -239,13 +216,25 @@ pub fn run() -> Result<(), JsValue> {
                 disable_section("decision");
                 enable_section("host");
 
-                let pc = p2p::create_peer_connection(|json_str| set_my_token(&json_str), |state_str| ui::show_connection_notification(&state_str));
+                let pc = p2p::create_host_peer_connection(
+                    |json| set_my_sdp_str(&json),                             // on_offer_generation
+                    |state_str| ui::show_connection_notification(&state_str), // on_connection_status_change
+                );
                 let dc = pc.create_data_channel("app");
-
-                setup_data_channel(&dc);
+                let on_connection_established = || {
+                    disable_section("host");
+                    disable_section("guest");
+                    enable_section("log");
+                    ui::show_notification("Connection established successfully!");
+                };
+                let on_message_received = |msg| {
+                    append_log(&format!("Peer: {}", msg));
+                };
+                p2p::config_data_channel(&dc, on_connection_established, on_message_received); // <---- this could be baked in right into p2p::create_host_peer_connection
                 *pc_clone.borrow_mut() = Some(pc.clone());
                 *dc_clone.borrow_mut() = Some(dc.clone());
 
+                // create offer
                 let offer = JsFuture::from(pc.create_offer()).await.unwrap();
                 JsFuture::from(pc.set_local_description(&offer.into())).await.unwrap();
                 ui::show_notification("Created invite code! Share it with your Guest.");
@@ -257,7 +246,7 @@ pub fn run() -> Result<(), JsValue> {
     {
         let btns = dom::document().get_elements_by_class_name("connect");
         for i in 0..btns.length() {
-            let btn = btns.item(i).unwrap();
+            let btn: Element = btns.item(i).unwrap();
 
             let pc = peer_connection.clone();
             let dc = data_channel.clone();
@@ -266,29 +255,45 @@ pub fn run() -> Result<(), JsValue> {
                 let dc_clone = dc.clone();
 
                 wasm_bindgen_futures::spawn_local(async move {
-                    let sdp = js_sys::JSON::parse(&get_peer_token()).unwrap();
-                    let sdp_type = Reflect::get(&sdp, &"type".into()).unwrap().as_string().unwrap();
+                    let sdp_str = get_peer_sdp_str();
+                    let sdp = js_sys::JSON::parse(&sdp_str).unwrap();
+                    let sdp_type = js_sys::Reflect::get(&sdp, &"type".into()).unwrap().as_string().unwrap();
 
                     if sdp_type == "offer" {
-                        let pc = p2p::create_peer_connection(|handshake_json| set_my_token(&handshake_json), |state| ui::show_connection_notification(&state));
+                        // guest: receive offer, create answer
+                        let dc_clone_inner = dc_clone.clone();
 
-                        let ondatachannel = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
-                            let dc = e.channel();
-                            setup_data_channel(&dc);
-                            *dc_clone.borrow_mut() = Some(dc);
-                        }) as Box<dyn FnMut(RtcDataChannelEvent)>);
-                        pc.set_ondatachannel(Some(ondatachannel.as_ref().unchecked_ref()));
-                        ondatachannel.forget();
-
-                        JsFuture::from(pc.set_remote_description(&sdp.into())).await.unwrap();
-                        JsFuture::from(pc.set_local_description(&JsFuture::from(pc.create_answer()).await.unwrap().into())).await.unwrap();
-
+                        let on_connection_established = || {
+                            disable_section("host");
+                            disable_section("guest");
+                            enable_section("log");
+                            ui::show_notification("Connection established successfully!");
+                        };
+                        let on_message_received = |msg| {
+                            append_log(&format!("Peer: {}", msg));
+                        };
+                        let pc = p2p::create_guest_peer_connection(
+                            &sdp_str,                                         // offer
+                            |json| set_my_sdp_str(&json),                     // on_answer_generation
+                            |state| ui::show_connection_notification(&state), // on_connection_state_change
+                            move |dc| {
+                                // on_datachannel_created
+                                p2p::config_data_channel(&dc, on_connection_established, on_message_received);
+                                *dc_clone_inner.borrow_mut() = Some(dc);
+                            },
+                        )
+                        .await;
                         *pc_clone.borrow_mut() = Some(pc);
                         ui::show_notification("Created response code! Share it with your host.");
                     } else if sdp_type == "answer" {
-                        let promise = pc_clone.borrow().as_ref().unwrap().set_remote_description(&sdp.into());
-                        JsFuture::from(promise).await.unwrap();
-                        ui::show_notification("Attempting to establish connection...");
+                        // host: receive answer, establish connection
+                        let pc_ref = pc_clone.borrow();
+                        if let Some(pc) = pc_ref.as_ref() {
+                            let sdp = js_sys::JSON::parse(&sdp_str).unwrap(); // answer
+                            let promise = pc.set_remote_description(&sdp.into());
+                            JsFuture::from(promise).await.unwrap();
+                            ui::show_notification("Attempting to establish connection...");
+                        }
                     }
                 });
             });
@@ -299,17 +304,14 @@ pub fn run() -> Result<(), JsValue> {
     {
         let text_area = dom::document().get_element_by_id("message").unwrap();
         let dc_clone = data_channel.clone();
-        dom::onkeypress(&text_area, move |event| {
+        dom::onkeypress(&text_area, move |event: KeyboardEvent| {
             if event.key() == "Enter" {
                 if let Some(dc) = &*dc_clone.borrow() {
-                    if dc.ready_state() == RtcDataChannelState::Open {
-                        let msg = get_message();
-                        if !msg.trim().is_empty() {
-                            dc.send_with_str(&msg).unwrap();
-                            append_log(&format!("You: {}", msg));
-                            clear_message();
-                            console_log!("Message sent: {}", msg);
-                        }
+                    let msg = get_message();
+                    let success = p2p::send_message(&dc, &msg);
+                    if success {
+                        append_log(&format!("You: {}", msg));
+                        clear_message();
                     }
                 }
             }
@@ -320,14 +322,11 @@ pub fn run() -> Result<(), JsValue> {
         let dc = data_channel;
         dom::onclick(&btn, move || {
             if let Some(dc) = &*dc.borrow() {
-                if dc.ready_state() == RtcDataChannelState::Open {
-                    let msg = get_message();
-                    if !msg.trim().is_empty() {
-                        dc.send_with_str(&msg).unwrap();
-                        append_log(&format!("You: {}", msg));
-                        clear_message();
-                        console_log!("Message sent: {}", msg);
-                    }
+                let msg = get_message();
+                let success = p2p::send_message(&dc, &msg);
+                if success {
+                    append_log(&format!("You: {}", msg));
+                    clear_message();
                 }
             }
         });

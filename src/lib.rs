@@ -180,9 +180,10 @@ pub fn run() -> Result<(), JsValue> {
 
     vec!["host", "guest", "log"].iter().for_each(|&section| disable_section(section));
 
-    // USER CHOSE GUEST MODE
+    //
+    // guest view
+    //
     {
-        // hide stuff, wait for offer from host
         let btn = dom::document().get_element_by_id("guest_selection").unwrap();
         dom::onclick(&btn, move || {
             disable_section("decision");
@@ -191,7 +192,9 @@ pub fn run() -> Result<(), JsValue> {
         });
     }
 
-    // USER CHOSE HOST MODE
+    //
+    // host view
+    //
     let peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>> = Rc::new(RefCell::new(None));
 
     {
@@ -207,12 +210,12 @@ pub fn run() -> Result<(), JsValue> {
 
                 let callbacks = p2p::PeerConnectionCallbacks {
                     on_sdp_ready: Box::new(|json| set_my_sdp_str(&json)),
-                    on_connection_status_change: Box::new(|state_str| view::show_connection_notification(&state_str)),
+                    on_connection_status_change: Box::new(|state_str| view::update_connection_notification(&state_str)),
                     on_connection_established: Box::new(|| {
                         disable_section("host");
                         disable_section("guest");
                         enable_section("log");
-                        view::show_notification("Connection established successfully!");
+                        view::update_notification("Connection established successfully!");
                     }),
                     on_message_received: Box::new(|msg| {
                         append_log(&format!("Peer: {}", msg));
@@ -223,12 +226,12 @@ pub fn run() -> Result<(), JsValue> {
                 peer_conn.create_offer().await.unwrap();
                 *con_clone.borrow_mut() = Some(peer_conn);
 
-                view::show_notification("Created invite code! Share it with your Guest.");
+                view::update_notification("Created invite code! Share it with your Guest.");
             });
         });
     }
 
-    // CONNECT BUTTON PRESSED IN EITHER OF THOSE ROLES
+    // logic for both
     {
         let btns = dom::document().get_elements_by_class_name("connect");
         for i in 0..btns.length() {
@@ -247,12 +250,12 @@ pub fn run() -> Result<(), JsValue> {
                         // guest: receive offer, create answer
                         let callbacks = p2p::PeerConnectionCallbacks {
                             on_sdp_ready: Box::new(|json| set_my_sdp_str(&json)),
-                            on_connection_status_change: Box::new(|state| view::show_connection_notification(&state)),
+                            on_connection_status_change: Box::new(|state| view::update_connection_notification(&state)),
                             on_connection_established: Box::new(|| {
                                 disable_section("host");
                                 disable_section("guest");
                                 enable_section("log");
-                                view::show_notification("Connection established successfully!");
+                                view::update_notification("Connection established successfully!");
                             }),
                             on_message_received: Box::new(|msg| {
                                 append_log(&format!("Peer: {}", msg));
@@ -261,13 +264,13 @@ pub fn run() -> Result<(), JsValue> {
 
                         let peer_conn = p2p::create_guest_peer_connection(&sdp_str, callbacks).await.unwrap();
                         *con_clone.borrow_mut() = Some(peer_conn);
-                        view::show_notification("Created response code! Share it with your host.");
+                        view::update_notification("Created response code! Share it with your host.");
                     } else if sdp_type == "answer" {
                         // host: receive answer, establish connection
                         let con_ref = con_clone.borrow();
                         if let Some(con) = con_ref.as_ref() {
                             con.set_remote_description(&sdp_str).await.unwrap();
-                            view::show_notification("Attempting to establish connection...");
+                            view::update_notification("Attempting to establish connection...");
                         }
                     }
                 });
@@ -275,7 +278,9 @@ pub fn run() -> Result<(), JsValue> {
         }
     }
 
-    // CONNECTION SUCCESSFUL, SHOWING CHAT UI
+    //
+    // CHAT VIEW
+    //
     {
         let text_area = dom::document().get_element_by_id("message").unwrap();
         let con_clone = peer_connection.clone();

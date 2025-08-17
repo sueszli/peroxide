@@ -1,3 +1,53 @@
-make the notifications be outside of the body
+check out the `src/lib.rs` page.
 
-in `src/
+instead of adding everything to the body and setting `display: none` on elements,
+for each of the 4 stages / views (decision, host, guest, log/chat), remove the body as it currently is,
+and fill it again from scratch with inline html.
+
+Let's start of with the decision page.
+
+Here's an example for a function that should be called `render_decision_page`:
+
+```
+<body>
+    <h2>Choose your role</h2>
+
+    <p>This application establishes a peer-to-peer connection between two users. You can choose to be the host or the guest.</p>
+
+    <div>
+        <button id="host_selection">Host</button>
+        <button id="guest_selection">Guest</button>
+    </div>
+</body>
+```
+
+```
+#decision div {
+    display: flex;
+    justify-content: center;
+}
+#decision button {
+    margin: 1rem 1rem;
+    width: 30%;
+}
+h2 {
+    margin-top: 6rem;
+}
+p {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+}
+button {
+    cursor: pointer;
+    font-family: 'Lucida Console', monospace;
+    padding: 0.5rem;
+
+    background-color: #f0f0f0;
+    border: 1px solid;
+    width: 20%;
+}
+```
+
+after this we shouldn't have any global HTML and CSS anymore.
+
+i want to pass the lambdas `on_host_decision` and `on_guest_decision` to the decision page, that get called, depending on which button the user clicks. After a click, the body is removed again.

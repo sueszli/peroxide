@@ -19,13 +19,13 @@ pub fn init_ui() {
     style.set_text_content(Some(GLOBAL_STYLING));
     head.append_child(&style).unwrap();
 
-    show_connection_notification("🔴 Disconnected");
-    show_notification("");
+    update_connection_notification("🔴 Disconnected");
+    update_notification("");
 }
 
 /// Shows connection status notifications.
 /// This element is placed outside of the `body`, so it can't be accidentally removed.
-pub fn show_connection_notification(status: &str) {
+pub fn update_connection_notification(status: &str) {
     let doc = dom::document();
 
     // create if missing
@@ -69,7 +69,7 @@ pub fn show_connection_notification(status: &str) {
 
 /// Shows general user notifications.
 /// This element is placed outside of the `body`, so it can't be accidentally removed.
-pub fn show_notification(message: &str) {
+pub fn update_notification(message: &str) {
     let doc = dom::document();
 
     // create if missing

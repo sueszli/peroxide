@@ -45,7 +45,6 @@ pub fn update_style_property(style: &str, property: &str, value: &str) -> String
         if prop.is_empty() {
             continue;
         }
-
         if prop.starts_with(&format!("{}:", property)) {
             updated_properties.push(format!("{}: {}", property, value));
             found = true;
@@ -53,7 +52,6 @@ pub fn update_style_property(style: &str, property: &str, value: &str) -> String
             updated_properties.push(prop.to_string());
         }
     }
-
     if !found {
         updated_properties.push(format!("{}: {}", property, value));
     }

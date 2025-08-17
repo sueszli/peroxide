@@ -8,7 +8,6 @@ use js_sys::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::*;
 use wasm_bindgen_futures::*;
 use web_sys::*;
 
@@ -192,7 +191,7 @@ fn setup_data_channel(dc: &RtcDataChannel) {
         disable_section("host");
         disable_section("guest");
         enable_section("log");
-        ui::show_toast("Connection established successfully!", ui::ToastType::Success);
+        ui::show_notification("Connection established successfully!");
     }) as Box<dyn FnMut()>);
     dc.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
@@ -213,7 +212,8 @@ pub fn run() -> Result<(), JsValue> {
 
     init_ui();
 
-    ui::update_connection_status("🔴 Disconnected");
+    ui::show_notification("");
+    ui::show_connection_notification("🔴 Disconnected");
 
     // start with blank slate
     vec!["host", "guest", "log"].iter().for_each(|&section| disable_section(section));
@@ -243,7 +243,7 @@ pub fn run() -> Result<(), JsValue> {
                 disable_section("decision");
                 enable_section("host");
 
-                let pc = p2p::create_peer_connection(|json_str| set_my_id(&json_str), |state_str| ui::update_connection_status(&state_str));
+                let pc = p2p::create_peer_connection(|json_str| set_my_id(&json_str), |state_str| ui::show_connection_notification(&state_str));
                 let dc = pc.create_data_channel("app");
 
                 setup_data_channel(&dc);
@@ -252,7 +252,7 @@ pub fn run() -> Result<(), JsValue> {
 
                 let offer = JsFuture::from(pc.create_offer()).await.unwrap();
                 JsFuture::from(pc.set_local_description(&offer.into())).await.unwrap();
-                ui::show_toast("Host offer created successfully! Share your ID.", ui::ToastType::Success);
+                ui::show_notification("Host offer created successfully! Share your ID.");
             });
         });
     }
@@ -273,8 +273,8 @@ pub fn run() -> Result<(), JsValue> {
                     let sdp_type = Reflect::get(&sdp, &"type".into()).unwrap().as_string().unwrap();
 
                     if sdp_type == "offer" {
-                        let pc = p2p::create_peer_connection(|handshake_json| set_my_id(&handshake_json), |state| ui::update_connection_status(&state));
-                        let dc_inner = dc_clone.clone();
+                        let pc = p2p::create_peer_connection(|handshake_json| set_my_id(&handshake_json), |state| ui::show_connection_notification(&state));
+                        let dc_inner = dc_clone.clone(); // remove this .clone() call
 
                         let ondatachannel = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
                             let dc = e.channel();
@@ -288,11 +288,11 @@ pub fn run() -> Result<(), JsValue> {
                         JsFuture::from(pc.set_local_description(&JsFuture::from(pc.create_answer()).await.unwrap().into())).await.unwrap();
 
                         *pc_clone.borrow_mut() = Some(pc);
-                        ui::show_toast("Answer created! Share your response code.", ui::ToastType::Info);
+                        ui::show_notification("Answer created! Share your response code.");
                     } else if sdp_type == "answer" {
                         let promise = pc_clone.borrow().as_ref().unwrap().set_remote_description(&sdp.into());
                         JsFuture::from(promise).await.unwrap();
-                        ui::show_toast("Attempting to establish connection...", ui::ToastType::Warning);
+                        ui::show_notification("Attempting to establish connection...");
                     }
                 });
             });

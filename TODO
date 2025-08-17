@@ -5,3 +5,13 @@ the toast notification stuff are an overkill. i just need to send information no
 move p2p logic into its own module
 
 move programmatically generated ui elements into their own module
+
+
+ui idea:
+
+| connection status...  |   ...... empty stuff, occasionally notification, but has a blinking cursor and when a notification shows up, the cursor immediately deletes all text and shows new text |
+
+instead of having notification toastrs, i'd like to have the other 90% of the page filled with  │
+│   a second round floating pill that is empty, but just shows notifications for 5s that slowly     │
+│   fade out. but the pill itself is white, just like the connection-status pill and always empty   │
+│   when there isn't a notification.                                                                

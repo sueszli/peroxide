@@ -21,53 +21,19 @@ use web_sys::{Event, MessageEvent, RtcConfiguration, RtcDataChannel, RtcDataChan
 /// - `on_connection_status_change` - Callback when the connection state of the peer connection changes.
 /// - `on_connection_established` - Callback when the data channel opens.
 /// - `on_message_received` - Callback when a message is received on the data channel.
-pub fn create_host_peer_connection<F1, F2, F3, F4>(mut on_offer_generation: F1, mut on_connection_status_change: F2, on_connection_established: F3, on_message_received: F4) -> (RtcPeerConnection, RtcDataChannel)
+pub fn create_host_peer_connection<F1, F2, F3, F4>(on_offer_generation: F1, on_connection_status_change: F2, on_connection_established: F3, on_message_received: F4) -> (RtcPeerConnection, RtcDataChannel)
 where
     F1: 'static + FnMut(String),
     F2: 'static + FnMut(&str),
     F3: 'static + FnMut(),
     F4: 'static + FnMut(String),
 {
-    let ice_server = RtcIceServer::new();
-    ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
-    let configuration = RtcConfiguration::new();
-    configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
-    let pc = RtcPeerConnection::new_with_configuration(&configuration).unwrap();
-
-    // also called by the guest, because both the offer and the answer use the SDP data format
-    let onicecandidate_callback = Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
-        if event.candidate().is_none() {
-            let pc = event.current_target().unwrap().dyn_into::<RtcPeerConnection>().unwrap();
-            if let Some(desc) = pc.local_description() {
-                let json_str = js_sys::JSON::stringify(&desc).unwrap().as_string().unwrap();
-                console_log!("generated sdp: {}", json_str);
-                on_offer_generation(json_str);
-            }
-        }
-    }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>);
-    pc.set_onicecandidate(Some(onicecandidate_callback.as_ref().unchecked_ref()));
-    onicecandidate_callback.forget();
-
-    // change in connection state
-    let onconnectionstatechange_callback = Closure::wrap(Box::new(move |event: Event| {
-        let pc = event.current_target().unwrap().dyn_into::<RtcPeerConnection>().unwrap();
-        let state_str = match pc.connection_state() {
-            RtcPeerConnectionState::New => "🟡 New",
-            RtcPeerConnectionState::Connecting => "🟡 Connecting",
-            RtcPeerConnectionState::Connected => "🟢 Connected",
-            RtcPeerConnectionState::Disconnected => "🔴 Disconnected",
-            RtcPeerConnectionState::Failed => "🔴 Failed",
-            RtcPeerConnectionState::Closed => "🔴 Closed",
-            _ => "🔴 Unknown error",
-        };
-        console_log!("connection status changed: {}", state_str);
-        on_connection_status_change(state_str);
-    }) as Box<dyn FnMut(Event)>);
-    pc.set_onconnectionstatechange(Some(onconnectionstatechange_callback.as_ref().unchecked_ref()));
-    onconnectionstatechange_callback.forget();
+    let pc = create_rtc_configuration();
+    setup_ice_candidate_callback(&pc, on_offer_generation);
+    setup_connection_state_callback(&pc, on_connection_status_change);
 
     let dc = pc.create_data_channel("app");
-    config_data_channel(&dc, on_connection_established, on_message_received);
+    setup_data_channel_callbacks(&dc, on_connection_established, on_message_received);
 
     (pc, dc)
 }
@@ -88,37 +54,87 @@ where
     F3: 'static + FnMut(),
     F4: 'static + FnMut(String),
 {
-    let sdp = js_sys::JSON::parse(offer).unwrap();
-    let (pc, _) = create_host_peer_connection(on_answer_generation, on_connection_status_change, || {}, |_| {});
+    let pc = create_rtc_configuration();
+    setup_ice_candidate_callback(&pc, on_answer_generation);
+    setup_connection_state_callback(&pc, on_connection_status_change);
 
-    let on_connection_established_rc = Rc::new(RefCell::new(on_connection_established));
-    let on_message_received_rc = Rc::new(RefCell::new(on_message_received));
+    let on_connection_established = Rc::new(RefCell::new(on_connection_established));
+    let on_message_received = Rc::new(RefCell::new(on_message_received));
 
     let ondatachannel_callback = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
         let dc = e.channel();
         console_log!("data channel created: {}", dc.label());
 
-        let on_conn_est = on_connection_established_rc.clone();
-        let on_msg_recv = on_message_received_rc.clone();
-        config_data_channel(&dc, move || on_conn_est.borrow_mut()(), move |msg| on_msg_recv.borrow_mut()(msg));
+        let on_conn_est = on_connection_established.clone();
+        let on_msg_recv = on_message_received.clone();
+        setup_data_channel_callbacks(&dc, move || on_conn_est.borrow_mut()(), move |data| on_msg_recv.borrow_mut()(data));
     }) as Box<dyn FnMut(RtcDataChannelEvent)>);
     pc.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
     ondatachannel_callback.forget();
 
+    let sdp = js_sys::JSON::parse(offer).unwrap();
     JsFuture::from(pc.set_remote_description(&sdp.into())).await.unwrap();
     JsFuture::from(pc.set_local_description(&JsFuture::from(pc.create_answer()).await.unwrap().into())).await.unwrap();
 
     pc
 }
 
-fn config_data_channel<F1, F2>(dc: &RtcDataChannel, mut on_connection_established: F1, mut on_message_received: F2)
+fn create_rtc_configuration() -> RtcPeerConnection {
+    let ice_server = RtcIceServer::new();
+    ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
+    let configuration = RtcConfiguration::new();
+    configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
+    RtcPeerConnection::new_with_configuration(&configuration).unwrap()
+}
+
+fn setup_ice_candidate_callback<F>(pc: &RtcPeerConnection, mut callback: F)
+where
+    F: 'static + FnMut(String),
+{
+    let onicecandidate_callback = Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
+        if event.candidate().is_none() {
+            let pc = event.current_target().unwrap().dyn_into::<RtcPeerConnection>().unwrap();
+            if let Some(desc) = pc.local_description() {
+                let json_str = js_sys::JSON::stringify(&desc).unwrap().as_string().unwrap();
+                console_log!("generated sdp: {}", json_str);
+                callback(json_str);
+            }
+        }
+    }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>);
+    pc.set_onicecandidate(Some(onicecandidate_callback.as_ref().unchecked_ref()));
+    onicecandidate_callback.forget();
+}
+
+fn setup_connection_state_callback<F>(pc: &RtcPeerConnection, mut callback: F)
+where
+    F: 'static + FnMut(&str),
+{
+    let onconnectionstatechange_callback = Closure::wrap(Box::new(move |event: Event| {
+        let pc = event.current_target().unwrap().dyn_into::<RtcPeerConnection>().unwrap();
+        let state_str = match pc.connection_state() {
+            RtcPeerConnectionState::New => "🟡 New",
+            RtcPeerConnectionState::Connecting => "🟡 Connecting",
+            RtcPeerConnectionState::Connected => "🟢 Connected",
+            RtcPeerConnectionState::Disconnected => "🔴 Disconnected",
+            RtcPeerConnectionState::Failed => "🔴 Failed",
+            RtcPeerConnectionState::Closed => "🔴 Closed",
+            _ => "🔴 Unknown error",
+        };
+        console_log!("connection status changed: {}", state_str);
+        callback(state_str);
+    }) as Box<dyn FnMut(Event)>);
+    pc.set_onconnectionstatechange(Some(onconnectionstatechange_callback.as_ref().unchecked_ref()));
+    onconnectionstatechange_callback.forget();
+}
+
+fn setup_data_channel_callbacks<F1, F2>(dc: &RtcDataChannel, mut on_open: F1, mut on_message: F2)
 where
     F1: 'static + FnMut(),
     F2: 'static + FnMut(String),
 {
     let onopen_callback = Closure::wrap(Box::new(move || {
         console_log!("data channel opened");
-        on_connection_established();
+        on_open();
     }) as Box<dyn FnMut()>);
     dc.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
@@ -126,17 +142,16 @@ where
     let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
         if let Some(data) = event.data().as_string() {
             console_log!("message received: {}", data);
-            on_message_received(data);
+            on_message(data);
         }
     }) as Box<dyn FnMut(MessageEvent)>);
     dc.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     onmessage_callback.forget();
 }
 
-/// Send a message through the data channel if it's open.
-/// Returns true if message was sent, false if channel is not ready
 pub fn send_message(dc: &RtcDataChannel, message: &str) -> bool {
-    if dc.ready_state() == RtcDataChannelState::Open && !message.trim().is_empty() {
+    let is_valid_message = dc.ready_state() == RtcDataChannelState::Open && !message.trim().is_empty();
+    if is_valid_message {
         dc.send_with_str(message).unwrap();
         console_log!("message sent: {}", message);
         true

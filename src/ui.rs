@@ -1,7 +1,7 @@
 use crate::dom;
 
-/// Independently created, inserted and styled floating DOM node.
 /// Shows connection status notifications.
+/// Independently created, inserted and styled floating DOM node.
 pub fn show_connection_notification(status: &str) {
     let doc = dom::document();
 
@@ -43,8 +43,8 @@ pub fn show_connection_notification(status: &str) {
     status_element.set_text_content(Some(status));
 }
 
-/// Independently created, inserted and styled floating DOM node.
 /// Shows general user notifications.
+/// Independently created, inserted and styled floating DOM node.
 pub fn show_notification(message: &str) {
     let doc = dom::document();
     let body = doc.body().unwrap();

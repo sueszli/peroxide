@@ -211,9 +211,9 @@ fn setup_data_channel(dc: &RtcDataChannel) {
 pub fn run() -> Result<(), JsValue> {
     console_error_panic_hook::set_once(); // map panics to console.error
 
-    ui::update_connection_status("🔴 Disconnected");
-
     init_ui();
+
+    ui::update_connection_status("🔴 Disconnected");
 
     // start with blank slate
     vec!["host", "guest", "log"].iter().for_each(|&section| disable_section(section));

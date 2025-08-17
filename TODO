@@ -1,3 +1,0 @@
-drop redundent clones in lib.rs
-
-we can put the pc, dc in a struct

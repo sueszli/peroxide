@@ -140,7 +140,7 @@ fn clear_my_token() {
 fn get_peer_token() -> String {
     let elems = dom::document().get_elements_by_class_name("peer_id").dyn_into::<HtmlCollection>().unwrap();
     let ids = (0..elems.length()).map(|i| elems.item(i).unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value()).collect::<Vec<String>>();
-    let largest = ids.iter().max_by_key(|id| id.len()).unwrap().to_string();
+    let largest = ids.iter().max_by_key(|id| id.len()).unwrap();
     return utils::decompress_string(&largest);
 }
 
@@ -271,12 +271,11 @@ pub fn run() -> Result<(), JsValue> {
 
                     if sdp_type == "offer" {
                         let pc = p2p::create_peer_connection(|handshake_json| set_my_token(&handshake_json), |state| ui::show_connection_notification(&state));
-                        let dc_inner = dc_clone.clone(); // remove this .clone() call
 
                         let ondatachannel = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
                             let dc = e.channel();
                             setup_data_channel(&dc);
-                            *dc_inner.borrow_mut() = Some(dc);
+                            *dc_clone.borrow_mut() = Some(dc);
                         }) as Box<dyn FnMut(RtcDataChannelEvent)>);
                         pc.set_ondatachannel(Some(ondatachannel.as_ref().unchecked_ref()));
                         ondatachannel.forget();

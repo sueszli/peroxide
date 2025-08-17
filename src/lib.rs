@@ -1,3 +1,4 @@
+#[macro_use]
 mod dom;
 mod p2p;
 mod utils;
@@ -16,12 +17,6 @@ const STYLING: &str = r#"
     body {
         max-width: 800px; margin: 0 auto; padding: 0 1rem;
         font-family: 'Lucida Console', monospace;
-    }
-
-    nav {
-        background-color: #f0f0f0;
-        padding: 0.5rem;
-        margin-bottom: 1rem;
     }
 
     #decision div {
@@ -75,10 +70,6 @@ const STYLING: &str = r#"
 "#;
 
 const HTML: &str = r#"
-    <nav>
-        <span>Status: <span id="status">Ready</span></span>
-    </nav>
-
     <section id="decision">
         <h2>Choose your role</h2>
 
@@ -163,9 +154,12 @@ fn get_peer_id() -> String {
     return utils::decompress_string(&largest);
 }
 
-fn set_status(message: &str) {
-    let status = dom::document().get_element_by_id("status").unwrap();
-    status.set_text_content(Some(message));
+fn set_connection_status(message: &str) {
+    dom::update_connection_status(message);
+}
+
+fn show_toast(message: &str, toast_type: dom::ToastType, duration_ms: i32) {
+    dom::show_toast(message, toast_type, duration_ms);
 }
 
 fn get_message() -> String {
@@ -173,12 +167,17 @@ fn get_message() -> String {
     return message.value();
 }
 
+fn clear_message() {
+    let message = dom::document().get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+    message.set_value("");
+}
+
 fn append_log(message: &str) {
     let elem = dom::document().get_element_by_id("logbox").unwrap();
     let div = dom::document().create_element("div").unwrap();
     div.set_text_content(Some(message));
     elem.append_child(&div).unwrap();
-    let elem: HtmlElement = elem.dyn_into().unwrap();
+    let elem = elem.dyn_into::<HtmlElement>().unwrap();
     elem.set_scroll_top(elem.scroll_height());
 }
 
@@ -186,7 +185,6 @@ fn enable_section(section: &str) {
     let section = dom::document().get_element_by_id(section).unwrap();
     section.set_attribute("style", "").unwrap();
 }
-
 fn disable_section(section: &str) {
     let section = dom::document().get_element_by_id(section).unwrap();
     section.set_attribute("style", "display: none;").unwrap();
@@ -201,6 +199,7 @@ fn setup_data_channel(dc: &RtcDataChannel) {
         disable_section("host");
         disable_section("guest");
         enable_section("log");
+        show_toast("Connection established successfully!", dom::ToastType::Success, 4000);
     }) as Box<dyn FnMut()>);
     dc.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
@@ -208,48 +207,11 @@ fn setup_data_channel(dc: &RtcDataChannel) {
     let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
         if let Some(data) = event.data().as_string() {
             append_log(&format!("Peer: {}", data));
+            show_toast("Message received!", dom::ToastType::Info, 2000);
         }
     }) as Box<dyn FnMut(MessageEvent)>);
     dc.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     onmessage_callback.forget();
-}
-
-fn create_peer_connection() -> RtcPeerConnection {
-    let ice_server: RtcIceServer = RtcIceServer::new();
-    ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
-    let configuration = RtcConfiguration::new();
-    configuration.set_ice_servers(&js_sys::Array::of1(&ice_server));
-    let pc = RtcPeerConnection::new_with_configuration(&configuration).unwrap();
-
-    let pc_clone = pc.clone();
-    let onicecandidate_callback = Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
-        if event.candidate().is_none() {
-            if let Some(desc) = pc_clone.local_description() {
-                let json_str = js_sys::JSON::stringify(&desc).unwrap().as_string().unwrap();
-                set_my_id(&json_str);
-            }
-        }
-    }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>);
-    pc.set_onicecandidate(Some(onicecandidate_callback.as_ref().unchecked_ref()));
-    onicecandidate_callback.forget();
-
-    let pc_clone = pc.clone();
-    let onconnectionstatechange_callback = Closure::wrap(Box::new(move || {
-        let state_str = match pc_clone.connection_state() {
-            RtcPeerConnectionState::New => "new",
-            RtcPeerConnectionState::Connecting => "Connecting",
-            RtcPeerConnectionState::Connected => "Connected",
-            RtcPeerConnectionState::Disconnected => "Disconnected",
-            RtcPeerConnectionState::Failed => "Failed",
-            RtcPeerConnectionState::Closed => "Closed",
-            _ => "Unknown error",
-        };
-        set_status(&format!("{}", state_str));
-    }) as Box<dyn FnMut()>);
-    pc.set_onconnectionstatechange(Some(onconnectionstatechange_callback.as_ref().unchecked_ref()));
-    onconnectionstatechange_callback.forget();
-
-    return pc;
 }
 
 #[wasm_bindgen(start)]
@@ -258,6 +220,7 @@ pub fn run() -> Result<(), JsValue> {
 
     init_ui();
 
+    // start with blank slate
     vec!["host", "guest", "log"].iter().for_each(|&section| disable_section(section));
 
     {
@@ -285,7 +248,7 @@ pub fn run() -> Result<(), JsValue> {
                 disable_section("decision");
                 enable_section("host");
 
-                let pc = create_peer_connection();
+                let pc = p2p::create_peer_connection(|json_str| set_my_id(&json_str), |state_str| set_connection_status(state_str));
                 let dc = pc.create_data_channel("app");
 
                 setup_data_channel(&dc);
@@ -294,7 +257,7 @@ pub fn run() -> Result<(), JsValue> {
 
                 let offer = JsFuture::from(pc.create_offer()).await.unwrap();
                 JsFuture::from(pc.set_local_description(&offer.into())).await.unwrap();
-                set_status("Offer created! Share your ID.");
+                show_toast("Host offer created successfully! Share your ID.", dom::ToastType::Success, 3000);
             });
         });
     }
@@ -315,7 +278,7 @@ pub fn run() -> Result<(), JsValue> {
                     let sdp_type = Reflect::get(&sdp, &"type".into()).unwrap().as_string().unwrap();
 
                     if sdp_type == "offer" {
-                        let pc = create_peer_connection();
+                        let pc = p2p::create_peer_connection(|handshake_json| set_my_id(&handshake_json), |state| set_connection_status(state));
                         let dc_inner = dc_clone.clone();
 
                         let ondatachannel = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
@@ -330,17 +293,18 @@ pub fn run() -> Result<(), JsValue> {
                         JsFuture::from(pc.set_local_description(&JsFuture::from(pc.create_answer()).await.unwrap().into())).await.unwrap();
 
                         *pc_clone.borrow_mut() = Some(pc);
-                        set_status("Answered offer! Share your ID back.");
+                        show_toast("Answer created! Share your response code.", dom::ToastType::Info, 3000);
                     } else if sdp_type == "answer" {
                         let promise = pc_clone.borrow().as_ref().unwrap().set_remote_description(&sdp.into());
                         JsFuture::from(promise).await.unwrap();
-                        set_status("Connecting...");
+                        show_toast("Attempting to establish connection...", dom::ToastType::Warning, 3000);
                     }
                 });
             });
         }
     }
 
+    // chatting stuff
     {
         let text_area = dom::document().get_element_by_id("message").unwrap();
         let dc_clone = data_channel.clone();
@@ -349,8 +313,12 @@ pub fn run() -> Result<(), JsValue> {
                 if let Some(dc) = &*dc_clone.borrow() {
                     if dc.ready_state() == RtcDataChannelState::Open {
                         let msg = get_message();
-                        dc.send_with_str(&msg).unwrap();
-                        append_log(&format!("You: {}", msg));
+                        if !msg.trim().is_empty() {
+                            dc.send_with_str(&msg).unwrap();
+                            append_log(&format!("You: {}", msg));
+                            clear_message();
+                            show_toast("Message sent!", dom::ToastType::Success, 2000);
+                        }
                     }
                 }
             }
@@ -363,8 +331,12 @@ pub fn run() -> Result<(), JsValue> {
             if let Some(dc) = &*dc.borrow() {
                 if dc.ready_state() == RtcDataChannelState::Open {
                     let msg = get_message();
-                    dc.send_with_str(&msg).unwrap();
-                    append_log(&format!("You: {}", msg));
+                    if !msg.trim().is_empty() {
+                        dc.send_with_str(&msg).unwrap();
+                        append_log(&format!("You: {}", msg));
+                        clear_message();
+                        show_toast("Message sent!", dom::ToastType::Success, 2000);
+                    }
                 }
             }
         });

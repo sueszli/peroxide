@@ -192,7 +192,7 @@ fn setup_data_channel(dc: &RtcDataChannel) {
         disable_section("host");
         disable_section("guest");
         enable_section("log");
-        ui::show_toast("Connection established successfully!", ui::ToastType::Success, 4000);
+        ui::show_toast("Connection established successfully!", ui::ToastType::Success);
     }) as Box<dyn FnMut()>);
     dc.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
@@ -252,7 +252,7 @@ pub fn run() -> Result<(), JsValue> {
 
                 let offer = JsFuture::from(pc.create_offer()).await.unwrap();
                 JsFuture::from(pc.set_local_description(&offer.into())).await.unwrap();
-                ui::show_toast("Host offer created successfully! Share your ID.", ui::ToastType::Success, 3000);
+                ui::show_toast("Host offer created successfully! Share your ID.", ui::ToastType::Success);
             });
         });
     }
@@ -288,11 +288,11 @@ pub fn run() -> Result<(), JsValue> {
                         JsFuture::from(pc.set_local_description(&JsFuture::from(pc.create_answer()).await.unwrap().into())).await.unwrap();
 
                         *pc_clone.borrow_mut() = Some(pc);
-                        ui::show_toast("Answer created! Share your response code.", ui::ToastType::Info, 3000);
+                        ui::show_toast("Answer created! Share your response code.", ui::ToastType::Info);
                     } else if sdp_type == "answer" {
                         let promise = pc_clone.borrow().as_ref().unwrap().set_remote_description(&sdp.into());
                         JsFuture::from(promise).await.unwrap();
-                        ui::show_toast("Attempting to establish connection...", ui::ToastType::Warning, 3000);
+                        ui::show_toast("Attempting to establish connection...", ui::ToastType::Warning);
                     }
                 });
             });

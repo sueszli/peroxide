@@ -75,7 +75,7 @@ impl ToastType {
 }
 
 /// Shows a toast notification that automatically disappears after a specified duration.
-pub fn show_toast(message: &str, toast_type: ToastType, duration_ms: i32) {
+pub fn show_toast(message: &str, toast_type: ToastType) {
     let doc = dom::document();
     let body = doc.body().unwrap();
 
@@ -122,7 +122,7 @@ pub fn show_toast(message: &str, toast_type: ToastType, duration_ms: i32) {
     let callback = Closure::wrap(Box::new(move || {
         remove_toast(&toast_id_clone);
     }) as Box<dyn FnMut()>);
-    web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(callback.as_ref().unchecked_ref(), duration_ms).unwrap();
+    web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(callback.as_ref().unchecked_ref(), 4000).unwrap(); // 4s floating
 
     callback.forget();
 }

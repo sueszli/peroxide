@@ -216,11 +216,6 @@ pub fn run() -> Result<(), JsValue> {
                 disable_section("decision");
                 enable_section("host");
 
-                let pc = p2p::create_host_peer_connection(
-                    |json| set_my_sdp_str(&json),                             // on_offer_generation
-                    |state_str| ui::show_connection_notification(&state_str), // on_connection_status_change
-                );
-                let dc = pc.create_data_channel("app");
                 let on_connection_established = || {
                     disable_section("host");
                     disable_section("guest");
@@ -230,7 +225,12 @@ pub fn run() -> Result<(), JsValue> {
                 let on_message_received = |msg| {
                     append_log(&format!("Peer: {}", msg));
                 };
-                p2p::config_data_channel(&dc, on_connection_established, on_message_received); // <---- this could be baked in right into p2p::create_host_peer_connection
+                let (pc, dc) = p2p::create_host_peer_connection(
+                    |json| set_my_sdp_str(&json),                             // on_offer_generation
+                    |state_str| ui::show_connection_notification(&state_str), // on_connection_status_change
+                    on_connection_established,                                // on_connection_established
+                    on_message_received,                                      // on_message_received
+                );
                 *pc_clone.borrow_mut() = Some(pc.clone());
                 *dc_clone.borrow_mut() = Some(dc.clone());
 
@@ -276,9 +276,10 @@ pub fn run() -> Result<(), JsValue> {
                             &sdp_str,                                         // offer
                             |json| set_my_sdp_str(&json),                     // on_answer_generation
                             |state| ui::show_connection_notification(&state), // on_connection_state_change
+                            on_connection_established,                        // on_connection_established
+                            on_message_received,                              // on_message_received
                             move |dc| {
-                                // on_datachannel_created
-                                p2p::config_data_channel(&dc, on_connection_established, on_message_received);
+                                // on_datachannel_created (already configured)
                                 *dc_clone_inner.borrow_mut() = Some(dc);
                             },
                         )

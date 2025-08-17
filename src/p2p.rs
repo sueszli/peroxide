@@ -1,10 +1,13 @@
 use js_sys;
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::{JsCast, JsValue, prelude::*};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Event, MessageEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelEvent, RtcDataChannelState, RtcIceServer, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcPeerConnectionState};
 
 /// This function is responsible for the first step in the protocol.
 /// Create a new `RtcPeerConnection` and set up event handlers.
+/// Also creates and configures the data channel.
 ///
 /// We have two peers:
 ///
@@ -17,10 +20,14 @@ use web_sys::{Event, MessageEvent, RtcConfiguration, RtcDataChannel, RtcDataChan
 ///
 /// - `on_offer_generation` - A callback that is called when the ICE candidate gathering is complete and the SDP is ready to be sent to the other peer.
 /// - `on_connection_status_change` - A callback that is called when the connection state of the peer connection changes.
-pub fn create_host_peer_connection<F1, F2>(mut on_offer_generation: F1, mut on_connection_status_change: F2) -> RtcPeerConnection
+/// - `on_connection_established` - A callback that is called when the data channel opens.
+/// - `on_message_received` - A callback that is called when a message is received on the data channel.
+pub fn create_host_peer_connection<F1, F2, F3, F4>(mut on_offer_generation: F1, mut on_connection_status_change: F2, on_connection_established: F3, on_message_received: F4) -> (RtcPeerConnection, RtcDataChannel)
 where
     F1: 'static + FnMut(String),
     F2: 'static + FnMut(&str),
+    F3: 'static + FnMut(),
+    F4: 'static + FnMut(String),
 {
     let ice_server = RtcIceServer::new();
     ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
@@ -60,7 +67,10 @@ where
     pc.set_onconnectionstatechange(Some(onconnectionstatechange_callback.as_ref().unchecked_ref()));
     onconnectionstatechange_callback.forget();
 
-    pc
+    let dc = pc.create_data_channel("app");
+    config_data_channel(&dc, on_connection_established, on_message_received);
+
+    (pc, dc)
 }
 
 /// Use the hosts offer, to create an answer.
@@ -70,20 +80,37 @@ where
 /// - `offer` - The SDP offer from the host
 /// - `on_answer_generation` - Callback when the SDP answer is generated
 /// - `on_connection_status_change` - Callback when connection state changes
-/// - `on_datachannel_created` - Callback when data channel is created
-pub async fn create_guest_peer_connection<F1, F2, F3>(offer: &str, on_answer_generation: F1, on_connection_status_change: F2, mut on_datachannel_created: F3) -> RtcPeerConnection
+/// - `on_connection_established` - Callback when the data channel opens
+/// - `on_message_received` - Callback when a message is received on the data channel
+/// - `on_datachannel_created` - Callback when data channel is created (receives configured channel)
+pub async fn create_guest_peer_connection<F1, F2, F3, F4, F5>(offer: &str, on_answer_generation: F1, on_connection_status_change: F2, on_connection_established: F3, on_message_received: F4, on_datachannel_created: F5) -> RtcPeerConnection
 where
     F1: 'static + FnMut(String),
     F2: 'static + FnMut(&str),
-    F3: 'static + FnMut(RtcDataChannel),
+    F3: 'static + FnMut(),
+    F4: 'static + FnMut(String),
+    F5: 'static + FnMut(RtcDataChannel),
 {
     let sdp = js_sys::JSON::parse(offer).unwrap();
-    let pc = create_host_peer_connection(on_answer_generation, on_connection_status_change);
+    let (pc, _) = create_host_peer_connection(on_answer_generation, on_connection_status_change, || {}, |_| {});
+
+    let on_connection_established_rc = Rc::new(RefCell::new(on_connection_established));
+    let on_message_received_rc = Rc::new(RefCell::new(on_message_received));
+    let on_datachannel_created_rc = Rc::new(RefCell::new(on_datachannel_created));
 
     let ondatachannel_callback = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
         let dc = e.channel();
         console_log!("data channel created: {}", dc.label());
-        on_datachannel_created(dc);
+
+        let on_conn_est = on_connection_established_rc.clone();
+        let on_msg_recv = on_message_received_rc.clone();
+        config_data_channel(
+            &dc,
+            move || on_conn_est.borrow_mut()(),
+            move |msg| on_msg_recv.borrow_mut()(msg),
+        );
+
+        on_datachannel_created_rc.borrow_mut()(dc);
     }) as Box<dyn FnMut(RtcDataChannelEvent)>);
     pc.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
     ondatachannel_callback.forget();
@@ -94,14 +121,7 @@ where
     pc
 }
 
-/// Update the data channel with event handlers.
-///
-/// # Arguments
-///
-/// - `dc` - The RtcDataChannel to set up
-/// - `on_connection_established` - Callback when the data channel opens
-/// - `on_message_received` - Callback when a message is received
-pub fn config_data_channel<F1, F2>(dc: &RtcDataChannel, mut on_connection_established: F1, mut on_message_received: F2)
+fn config_data_channel<F1, F2>(dc: &RtcDataChannel, mut on_connection_established: F1, mut on_message_received: F2)
 where
     F1: 'static + FnMut(),
     F2: 'static + FnMut(String),

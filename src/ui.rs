@@ -22,7 +22,7 @@ pub fn show_connection_notification(status: &str) {
                  height: 24px; \
                  width: 130px; \
                  background-color: rgba(255, 255, 255, 0.95); \
-                 border: 2px solid #333; \
+                 border: 1.5px solid #333; \
                  border-radius: 20px; \
                  padding: 6px 12px; \
                  font-size: 14px; \
@@ -53,61 +53,55 @@ pub fn show_notification(message: &str) {
     let doc = dom::document();
     let body = doc.body().unwrap();
 
-    if doc.get_element_by_id("notification_pill").is_some() {
-        return;
-    }
+    // Get existing notification or create new one
+    let div = if let Some(existing) = doc.get_element_by_id("notification_pill") {
+        existing
+    } else {
+        let div = doc.create_element("div").unwrap();
+        div.set_id("notification_pill");
 
-    let div = doc.create_element("div").unwrap();
-    div.set_id("notification_pill");
+        // position the pill to the right of connection status, filling remaining horizontal space
+        div.set_attribute(
+            "style",
+            "position: fixed; \
+             top: 20px; \
+             left: 180px; \
+             right: 20px; \
+             height: 24px; \
+             background-color: rgba(255, 255, 255, 0.95); \
+             border: 1.5px solid #333; \
+             border-radius: 20px; \
+             padding: 6px 12px; \
+             font-size: 14px; \
+             font-weight: bold; \
+             z-index: 9999; \
+             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); \
+             backdrop-filter: blur(3px); \
+             display: flex; \
+             align-items: center; \
+             justify-content: flex-start; \
+             text-align: left; \
+             color: #333; \
+             opacity: 1; \
+             transition: opacity 0.5s ease-in-out;",
+        )
+        .unwrap();
 
-    // position the pill to the right of connection status, filling remaining horizontal space
-    div.set_attribute(
-        "style",
-        "position: fixed; \
-         top: 20px; \
-         left: 180px; \
-         right: 20px; \
-         height: 24px; \
-         background-color: rgba(255, 255, 255, 0.95); \
-         border: 2px solid #333; \
-         border-radius: 20px; \
-         padding: 6px 12px; \
-         font-size: 14px; \
-         font-weight: bold; \
-         z-index: 9999; \
-         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); \
-         backdrop-filter: blur(3px); \
-         display: flex; \
-         align-items: center; \
-         justify-content: flex-start; \
-         text-align: left; \
-         color: #333; \
-         opacity: 1; \
-         transition: opacity 0.5s ease-in-out;",
-    )
-    .unwrap();
-
-    body.insert_before(&div, body.first_child().as_ref()).unwrap();
-
-    let doc = dom::document();
-    let notification_pill = doc.get_element_by_id("notification_pill").unwrap();
+        body.insert_before(&div, body.first_child().as_ref()).unwrap();
+        div
+    };
 
     // set the notification message with consistent text color
-    let current_style = notification_pill.get_attribute("style").unwrap_or_default();
+    let current_style = div.get_attribute("style").unwrap_or_default();
     let updated_style = dom::update_style_property(&current_style, "color", "#333");
-    notification_pill.set_attribute("style", &updated_style).unwrap();
-    notification_pill.set_text_content(Some(message));
+    div.set_attribute("style", &updated_style).unwrap();
+    div.set_text_content(Some(message));
 
     // auto removal after 5 seconds
     let callback = Closure::wrap(Box::new(move || {
         let doc = dom::document();
         if let Some(pill) = doc.get_element_by_id("notification_pill") {
             pill.set_text_content(Some(""));
-
-            // reset color to default
-            let current_style = pill.get_attribute("style").unwrap_or_default();
-            let updated_style = dom::update_style_property(&current_style, "color", "#333");
-            pill.set_attribute("style", &updated_style).unwrap();
         }
     }) as Box<dyn FnMut()>);
     web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(callback.as_ref().unchecked_ref(), 5000).unwrap();

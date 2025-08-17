@@ -3,7 +3,6 @@
 
 use crate::dom;
 
-/// Placed in the `head` node, so it can't be accidentally removed.
 const GLOBAL_STYLING: &str = r#"
     * { margin: 0; padding: 0; }
     *::-webkit-scrollbar { display: none !important; }
@@ -12,7 +11,8 @@ const GLOBAL_STYLING: &str = r#"
         font-family: 'Lucida Console', monospace;
     }
 "#;
-pub fn init_ui() {
+pub fn init() {
+    // placed in head
     let doc = dom::document();
     let head = doc.head().unwrap();
     let style = doc.create_element("style").unwrap();
@@ -23,6 +23,10 @@ pub fn init_ui() {
     update_notification("");
 }
 
+//
+// notifications
+//
+
 /// Shows connection status notifications.
 /// This element is placed outside of the `body`, so it can't be accidentally removed.
 pub fn update_connection_notification(status: &str) {
@@ -31,6 +35,7 @@ pub fn update_connection_notification(status: &str) {
     // create if missing
     let status_element = match doc.get_element_by_id("notification_pill_left") {
         Some(element) => element,
+        // inline styling so it doesn't affect any other element
         None => {
             let div = doc.create_element("div").unwrap();
             div.set_id("notification_pill_left");
@@ -109,4 +114,53 @@ pub fn update_notification(message: &str) {
 
     // update content
     div.set_text_content(Some(message));
+}
+
+//
+// connection setup
+//
+
+const ROLE_SELECTION_HTML: &str = r#"
+    </div>
+        <h2>Choose your role</h2>
+
+        <p>This application establishes a peer-to-peer connection between two users. You can choose to be the host or the guest.</p>
+
+        <div>
+            <button id="host_selection">Host</button>
+            <button id="guest_selection">Guest</button>
+        </div>
+    </div>
+    <style>
+    div {
+        display: flex;
+        justify-content: center;
+    }
+    p {
+        margin-top: 2rem;
+        margin-bottom: 2rem;
+    }
+    h2 {
+        margin-top: 6rem;
+    }
+    button {
+        cursor: pointer;
+        font-family: 'Lucida Console', monospace;
+        padding: 0.5rem;
+        margin: 1rem 1rem;
+        
+        background-color: #f0f0f0;
+        border: 1px solid;
+        width: 30%;
+    }
+    </style>
+"#;
+pub fn render_role_selection(on_host_selection: impl Fn() + 'static, on_guest_selection: impl Fn() + 'static) {
+    dom::document().body().unwrap().set_inner_html(ROLE_SELECTION_HTML);
+
+    let host_btn = dom::document().get_element_by_id("host_selection").unwrap();
+    dom::onclick(&host_btn, move || on_host_selection());
+
+    let guest_btn = dom::document().get_element_by_id("guest_selection").unwrap();
+    dom::onclick(&guest_btn, move || on_guest_selection());
 }

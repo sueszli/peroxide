@@ -3,12 +3,12 @@ use wasm_bindgen::{JsCast, JsValue, prelude::*};
 use web_sys::{Event, RtcConfiguration, RtcIceServer, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcPeerConnectionState};
 
 /// First step of protocol: Create a new `RtcPeerConnection` and set up the necessary event handlers.
-/// 
+///
 /// We have two peers:
 ///
 /// - The "host" (offerer) is the peer that initiates the connection by creating an offer.
 /// - The "guest" (answerer) is the peer that receives the offer and creates an answer.
-// 
+//
 /// Also see: https://datatracker.ietf.org/doc/html/rfc3264
 ///
 /// # Arguments

@@ -95,7 +95,8 @@ pub fn show_notification(message: &str) {
     let fade_callback = Closure::wrap(Box::new(move || {
         let doc = dom::document();
         if let Some(elem) = doc.get_element_by_id("notification_pill_right") {
-            elem.set_attribute("style", 
+            elem.set_attribute(
+                "style",
                 "position: fixed; \
                  top: 20px; \
                  left: 180px; \
@@ -116,8 +117,9 @@ pub fn show_notification(message: &str) {
                  text-align: left; \
                  color: rgba(51, 51, 51, 0); \
                  opacity: 1; \
-                 transition: color 0.5s ease-in-out;"
-            ).unwrap();
+                 transition: color 0.5s ease-in-out;",
+            )
+            .unwrap();
         }
     }) as Box<dyn FnMut()>);
     web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(fade_callback.as_ref().unchecked_ref(), ms_before_fade).unwrap();

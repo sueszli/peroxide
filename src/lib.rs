@@ -269,7 +269,7 @@ pub fn append_log(message: &str) {
 pub fn run() -> Result<(), JsValue> {
     console_error_panic_hook::set_once(); // map panics to console.error
 
-    // TODO: the two arguments passed to render_host and render_guest should be a struct called `P2PConnectionCallbacks` and take `on_connection_established` and `on_message`
+    // TODO: the two arguments passed to render_host and render_guest should be a struct called `P2PConnectionCallbacks` and take `on_connection_established` and `on_message` --> this will be the universal interface to use for everything
     // TODO: there are lots of confusing and unnecessary clones, boxes etc. everywhere
 
     view::init();

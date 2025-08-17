@@ -317,7 +317,7 @@ pub fn run() -> Result<(), JsValue> {
 
         let btn = dom::document().get_element_by_id("send").unwrap();
 
-        let dc = data_channel.clone();
+        let dc = data_channel;
         dom::onclick(&btn, move || {
             if let Some(dc) = &*dc.borrow() {
                 if dc.ready_state() == RtcDataChannelState::Open {

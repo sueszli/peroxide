@@ -1,10 +1,9 @@
+can you use javascript to programmatically infer whether the current device is a mobile phone? --> add to index.html.
+check whether on phone, if that's the case, drop the body and just show a text saying "Device not supported."
+
+
 notifications aren't showing
 
 i'd like to have the notifications have a blinking cursor that deletes and replaces the text and looks futuristic.
 
-can you use javascript to programmatically infer whether the current device is a mobile phone? --> add to index.html.
-check whether on phone, if that's the case, drop the body and just show a text saying "Device not supported."
-
-why doesn't it work when i call the connection notification functions myself?
-
-move p2p logic into its own module
+move more p2p logic into its own module

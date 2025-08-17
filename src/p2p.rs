@@ -1,3 +1,34 @@
+//! # WebRTC Peer-to-Peer Connection Protocol
+//!
+//! This module implements a WebRTC peer-to-peer connection protocol between two peers:
+//! a "host" and a "guest".
+//!
+//! # Protocol Overview
+//!
+//! Roles:
+//! - **Host (Offerer)**: The peer that initiates the connection by creating an offer
+//! - **Guest (Answerer)**: The peer that receives the offer and creates an answer
+//!
+//! Connection Flow:
+//! 1. Host creates a `PeerConnection` and generates an offer (SDP)
+//! 2. Host shares the offer with the guest (out-of-band, e.g., copy/paste)
+//! 3. Guest receives the offer and creates their own `PeerConnection`
+//! 4. Guest processes the offer and generates an answer (SDP)
+//! 5. Guest shares the answer with the host (out-of-band)
+//! 6. Host receives and processes the answer
+//! 7. ICE candidates are exchanged and the connection is established
+//! 8. Data channel opens and peers can exchange messages
+//!
+//! Technical Details:
+//! - Uses STUN server (stun.l.google.com:19302) for NAT traversal
+//! - Creates a single data channel labeled "app" for message exchange
+//! - Implements the offer/answer model as defined in RFC 3264
+//! - Automatically handles ICE candidate gathering and connection state changes
+//!
+//! References:
+//! - [RFC 3264: An Offer/Answer Model with SDP](https://datatracker.ietf.org/doc/html/rfc3264)
+//! - [WebRTC API Documentation](https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API)
+
 use js_sys;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -5,78 +36,87 @@ use wasm_bindgen::{JsCast, JsValue, prelude::*};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Event, MessageEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelEvent, RtcDataChannelState, RtcIceServer, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcPeerConnectionState};
 
-/// This function marks the first step in the protocol.
-/// It creates a new `RtcPeerConnection`, `RtcDataChannel` and sets the callbacks for when the host creates an offer.
-///
-/// We have two peers:
-///
-/// - The "host" (offerer) is the peer that initiates the connection by creating an offer.
-/// - The "guest" (answerer) is the peer that receives the offer and creates an answer.
-///
-/// Also see: https://datatracker.ietf.org/doc/html/rfc3264
-///
-/// # Arguments
-///
-/// - `on_offer_generation` - Callback when the ICE candidate gathering is complete and the SDP is ready to be sent to the other peer.
-/// - `on_connection_status_change` - Callback when the connection state of the peer connection changes.
-/// - `on_connection_established` - Callback when the data channel opens.
-/// - `on_message_received` - Callback when a message is received on the data channel.
-pub fn create_host_peer_connection<F1, F2, F3, F4>(on_offer_generation: F1, on_connection_status_change: F2, on_connection_established: F3, on_message_received: F4) -> (RtcPeerConnection, RtcDataChannel)
-where
-    F1: 'static + FnMut(String),
-    F2: 'static + FnMut(&str),
-    F3: 'static + FnMut(),
-    F4: 'static + FnMut(String),
-{
-    let pc = create_rtc_configuration();
-    setup_ice_candidate_callback(&pc, on_offer_generation);
-    setup_connection_state_callback(&pc, on_connection_status_change);
-
-    let dc = pc.create_data_channel("app");
-    setup_data_channel_callbacks(&dc, on_connection_established, on_message_received);
-
-    (pc, dc)
+pub struct PeerConnectionCallbacks {
+    pub on_sdp_ready: Box<dyn FnMut(String)>,
+    pub on_connection_status_change: Box<dyn FnMut(&str)>,
+    pub on_connection_established: Box<dyn FnMut()>,
+    pub on_message_received: Box<dyn FnMut(String)>,
 }
 
-/// Use the hosts offer, to create an answer.
-///
-/// # Arguments
-///
-/// - `offer` - The SDP offer from the host
-/// - `on_answer_generation` - Callback when the SDP answer is generated
-/// - `on_connection_status_change` - Callback when connection state changes
-/// - `on_connection_established` - Callback when the data channel opens
-/// - `on_message_received` - Callback when a message is received on the data channel
-pub async fn create_guest_peer_connection<F1, F2, F3, F4>(offer: &str, on_answer_generation: F1, on_connection_status_change: F2, on_connection_established: F3, on_message_received: F4) -> RtcPeerConnection
-where
-    F1: 'static + FnMut(String),
-    F2: 'static + FnMut(&str),
-    F3: 'static + FnMut(),
-    F4: 'static + FnMut(String),
-{
-    let pc = create_rtc_configuration();
-    setup_ice_candidate_callback(&pc, on_answer_generation);
-    setup_connection_state_callback(&pc, on_connection_status_change);
+#[derive(Debug)]
+pub struct PeerConnection {
+    pc: RtcPeerConnection,
+    dc: Rc<RefCell<Option<RtcDataChannel>>>,
+}
 
-    let on_connection_established = Rc::new(RefCell::new(on_connection_established));
-    let on_message_received = Rc::new(RefCell::new(on_message_received));
+impl PeerConnection {
+    pub fn send_message(&self, message: &str) -> bool {
+        if let Some(dc) = self.dc.borrow().as_ref() {
+            let is_valid_message = dc.ready_state() == RtcDataChannelState::Open && !message.trim().is_empty();
+            if is_valid_message {
+                dc.send_with_str(message).unwrap();
+                console_log!("message sent: {}", message);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    pub async fn create_offer(&self) -> Result<(), JsValue> {
+        let offer = JsFuture::from(self.pc.create_offer()).await?;
+        JsFuture::from(self.pc.set_local_description(&offer.into())).await?;
+        Ok(())
+    }
+
+    pub async fn set_remote_description(&self, sdp: &str) -> Result<(), JsValue> {
+        let sdp = js_sys::JSON::parse(sdp)?;
+        JsFuture::from(self.pc.set_remote_description(&sdp.into())).await?;
+        Ok(())
+    }
+}
+
+pub fn create_host_peer_connection(callbacks: PeerConnectionCallbacks) -> PeerConnection {
+    let pc = create_rtc_configuration();
+    setup_ice_candidate_callback(&pc, callbacks.on_sdp_ready);
+    setup_connection_state_callback(&pc, callbacks.on_connection_status_change);
+
+    let dc = pc.create_data_channel("app");
+    setup_data_channel_callbacks(&dc, callbacks.on_connection_established, callbacks.on_message_received);
+
+    PeerConnection { pc, dc: Rc::new(RefCell::new(Some(dc))) }
+}
+
+pub async fn create_guest_peer_connection(offer: &str, callbacks: PeerConnectionCallbacks) -> Result<PeerConnection, JsValue> {
+    let pc = create_rtc_configuration();
+    setup_ice_candidate_callback(&pc, callbacks.on_sdp_ready);
+    setup_connection_state_callback(&pc, callbacks.on_connection_status_change);
+
+    let on_connection_established = Rc::new(RefCell::new(callbacks.on_connection_established));
+    let on_message_received = Rc::new(RefCell::new(callbacks.on_message_received));
+
+    let dc_storage = Rc::new(RefCell::new(None));
+    let dc_storage_clone = dc_storage.clone();
 
     let ondatachannel_callback = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
         let dc = e.channel();
         console_log!("data channel created: {}", dc.label());
+        *dc_storage_clone.borrow_mut() = Some(dc.clone());
 
         let on_conn_est = on_connection_established.clone();
         let on_msg_recv = on_message_received.clone();
-        setup_data_channel_callbacks(&dc, move || on_conn_est.borrow_mut()(), move |data| on_msg_recv.borrow_mut()(data));
+        setup_data_channel_callbacks(&dc, Box::new(move || on_conn_est.borrow_mut()()), Box::new(move |data| on_msg_recv.borrow_mut()(data)));
     }) as Box<dyn FnMut(RtcDataChannelEvent)>);
     pc.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
     ondatachannel_callback.forget();
 
-    let sdp = js_sys::JSON::parse(offer).unwrap();
-    JsFuture::from(pc.set_remote_description(&sdp.into())).await.unwrap();
-    JsFuture::from(pc.set_local_description(&JsFuture::from(pc.create_answer()).await.unwrap().into())).await.unwrap();
+    let sdp = js_sys::JSON::parse(offer)?;
+    JsFuture::from(pc.set_remote_description(&sdp.into())).await?;
+    JsFuture::from(pc.set_local_description(&JsFuture::from(pc.create_answer()).await?.into())).await?;
 
-    pc
+    Ok(PeerConnection { pc, dc: dc_storage })
 }
 
 fn create_rtc_configuration() -> RtcPeerConnection {
@@ -87,10 +127,7 @@ fn create_rtc_configuration() -> RtcPeerConnection {
     RtcPeerConnection::new_with_configuration(&configuration).unwrap()
 }
 
-fn setup_ice_candidate_callback<F>(pc: &RtcPeerConnection, mut callback: F)
-where
-    F: 'static + FnMut(String),
-{
+fn setup_ice_candidate_callback(pc: &RtcPeerConnection, mut callback: Box<dyn FnMut(String)>) {
     let onicecandidate_callback = Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
         if event.candidate().is_none() {
             let pc = event.current_target().unwrap().dyn_into::<RtcPeerConnection>().unwrap();
@@ -105,10 +142,7 @@ where
     onicecandidate_callback.forget();
 }
 
-fn setup_connection_state_callback<F>(pc: &RtcPeerConnection, mut callback: F)
-where
-    F: 'static + FnMut(&str),
-{
+fn setup_connection_state_callback(pc: &RtcPeerConnection, mut callback: Box<dyn FnMut(&str)>) {
     let onconnectionstatechange_callback = Closure::wrap(Box::new(move |event: Event| {
         let pc = event.current_target().unwrap().dyn_into::<RtcPeerConnection>().unwrap();
         let state_str = match pc.connection_state() {
@@ -127,11 +161,7 @@ where
     onconnectionstatechange_callback.forget();
 }
 
-fn setup_data_channel_callbacks<F1, F2>(dc: &RtcDataChannel, mut on_open: F1, mut on_message: F2)
-where
-    F1: 'static + FnMut(),
-    F2: 'static + FnMut(String),
-{
+fn setup_data_channel_callbacks(dc: &RtcDataChannel, mut on_open: Box<dyn FnMut()>, mut on_message: Box<dyn FnMut(String)>) {
     let onopen_callback = Closure::wrap(Box::new(move || {
         console_log!("data channel opened");
         on_open();
@@ -147,15 +177,4 @@ where
     }) as Box<dyn FnMut(MessageEvent)>);
     dc.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     onmessage_callback.forget();
-}
-
-pub fn send_message(dc: &RtcDataChannel, message: &str) -> bool {
-    let is_valid_message = dc.ready_state() == RtcDataChannelState::Open && !message.trim().is_empty();
-    if is_valid_message {
-        dc.send_with_str(message).unwrap();
-        console_log!("message sent: {}", message);
-        true
-    } else {
-        false
-    }
 }

@@ -10,4 +10,4 @@ build-release:
 
 .PHONY: fmt
 fmt:
-	cargo fmt -- --config max_width=500
+	cargo fmt -- --config max_width=5000

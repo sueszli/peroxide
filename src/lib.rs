@@ -200,43 +200,37 @@ pub fn run() -> Result<(), JsValue> {
     }
 
     // USER CHOSE HOST MODE
-    let peer_connection: Rc<RefCell<Option<RtcPeerConnection>>> = Rc::new(RefCell::new(None));
-    let data_channel: Rc<RefCell<Option<RtcDataChannel>>> = Rc::new(RefCell::new(None));
+    let peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>> = Rc::new(RefCell::new(None));
 
     {
         let btn: Element = dom::document().get_element_by_id("host_selection").unwrap();
 
-        let pc = peer_connection.clone();
-        let dc = data_channel.clone();
+        let con = peer_connection.clone();
         dom::onclick(&btn, move || {
-            let pc_clone = pc.clone();
-            let dc_clone = dc.clone();
+            let con_clone = con.clone();
 
             wasm_bindgen_futures::spawn_local(async move {
                 disable_section("decision");
                 enable_section("host");
 
-                let on_connection_established = || {
-                    disable_section("host");
-                    disable_section("guest");
-                    enable_section("log");
-                    ui::show_notification("Connection established successfully!");
+                let callbacks = p2p::PeerConnectionCallbacks {
+                    on_sdp_ready: Box::new(|json| set_my_sdp_str(&json)),
+                    on_connection_status_change: Box::new(|state_str| ui::show_connection_notification(&state_str)),
+                    on_connection_established: Box::new(|| {
+                        disable_section("host");
+                        disable_section("guest");
+                        enable_section("log");
+                        ui::show_notification("Connection established successfully!");
+                    }),
+                    on_message_received: Box::new(|msg| {
+                        append_log(&format!("Peer: {}", msg));
+                    }),
                 };
-                let on_message_received = |msg| {
-                    append_log(&format!("Peer: {}", msg));
-                };
-                let (pc, dc) = p2p::create_host_peer_connection(
-                    |json| set_my_sdp_str(&json),                             // on_offer_generation
-                    |state_str| ui::show_connection_notification(&state_str), // on_connection_status_change
-                    on_connection_established,                                // on_connection_established
-                    on_message_received,                                      // on_message_received
-                );
-                *pc_clone.borrow_mut() = Some(pc.clone());
-                *dc_clone.borrow_mut() = Some(dc.clone());
 
-                // create offer
-                let offer = JsFuture::from(pc.create_offer()).await.unwrap();
-                JsFuture::from(pc.set_local_description(&offer.into())).await.unwrap();
+                let peer_conn = p2p::create_host_peer_connection(callbacks);
+                peer_conn.create_offer().await.unwrap();
+                *con_clone.borrow_mut() = Some(peer_conn);
+
                 ui::show_notification("Created invite code! Share it with your Guest.");
             });
         });
@@ -248,9 +242,9 @@ pub fn run() -> Result<(), JsValue> {
         for i in 0..btns.length() {
             let btn: Element = btns.item(i).unwrap();
 
-            let pc = peer_connection.clone();
+            let con = peer_connection.clone();
             dom::onclick(&btn, move || {
-                let pc_clone = pc.clone();
+                let con_clone = con.clone();
 
                 wasm_bindgen_futures::spawn_local(async move {
                     let sdp_str = get_peer_sdp_str();
@@ -259,32 +253,28 @@ pub fn run() -> Result<(), JsValue> {
 
                     if sdp_type == "offer" {
                         // guest: receive offer, create answer
-                        let on_connection_established = || {
-                            disable_section("host");
-                            disable_section("guest");
-                            enable_section("log");
-                            ui::show_notification("Connection established successfully!");
+                        let callbacks = p2p::PeerConnectionCallbacks {
+                            on_sdp_ready: Box::new(|json| set_my_sdp_str(&json)),
+                            on_connection_status_change: Box::new(|state| ui::show_connection_notification(&state)),
+                            on_connection_established: Box::new(|| {
+                                disable_section("host");
+                                disable_section("guest");
+                                enable_section("log");
+                                ui::show_notification("Connection established successfully!");
+                            }),
+                            on_message_received: Box::new(|msg| {
+                                append_log(&format!("Peer: {}", msg));
+                            }),
                         };
-                        let on_message_received = |msg| {
-                            append_log(&format!("Peer: {}", msg));
-                        };
-                        let pc = p2p::create_guest_peer_connection(
-                            &sdp_str,                                         // offer
-                            |json| set_my_sdp_str(&json),                     // on_answer_generation
-                            |state| ui::show_connection_notification(&state), // on_connection_state_change
-                            on_connection_established,                        // on_connection_established
-                            on_message_received,                              // on_message_received
-                        )
-                        .await;
-                        *pc_clone.borrow_mut() = Some(pc);
+
+                        let peer_conn = p2p::create_guest_peer_connection(&sdp_str, callbacks).await.unwrap();
+                        *con_clone.borrow_mut() = Some(peer_conn);
                         ui::show_notification("Created response code! Share it with your host.");
                     } else if sdp_type == "answer" {
                         // host: receive answer, establish connection
-                        let pc_ref = pc_clone.borrow();
-                        if let Some(pc) = pc_ref.as_ref() {
-                            let sdp = js_sys::JSON::parse(&sdp_str).unwrap(); // answer
-                            let promise = pc.set_remote_description(&sdp.into());
-                            JsFuture::from(promise).await.unwrap();
+                        let con_ref = con_clone.borrow();
+                        if let Some(con) = con_ref.as_ref() {
+                            con.set_remote_description(&sdp_str).await.unwrap();
                             ui::show_notification("Attempting to establish connection...");
                         }
                     }
@@ -296,12 +286,12 @@ pub fn run() -> Result<(), JsValue> {
     // CONNECTION SUCCESSFUL, SHOWING CHAT UI
     {
         let text_area = dom::document().get_element_by_id("message").unwrap();
-        let dc_clone = data_channel.clone();
+        let con_clone = peer_connection.clone();
         dom::onkeypress(&text_area, move |event: KeyboardEvent| {
             if event.key() == "Enter" {
-                if let Some(dc) = &*dc_clone.borrow() {
+                if let Some(con) = &*con_clone.borrow() {
                     let msg = get_message();
-                    let success = p2p::send_message(&dc, &msg);
+                    let success = con.send_message(&msg);
                     if success {
                         append_log(&format!("You: {}", msg));
                         clear_message();
@@ -311,12 +301,10 @@ pub fn run() -> Result<(), JsValue> {
         });
 
         let btn = dom::document().get_element_by_id("send").unwrap();
-
-        let dc = data_channel;
         dom::onclick(&btn, move || {
-            if let Some(dc) = &*dc.borrow() {
+            if let Some(con) = &*peer_connection.borrow() {
                 let msg = get_message();
-                let success = p2p::send_message(&dc, &msg);
+                let success = con.send_message(&msg);
                 if success {
                     append_log(&format!("You: {}", msg));
                     clear_message();

@@ -19,11 +19,11 @@ pub fn show_connection_notification(status: &str) {
                 "position: fixed; \
                  top: 20px; \
                  left: 20px; \
-                 height: 34px; \
+                 height: 24px; \
                  background-color: rgba(255, 255, 255, 0.95); \
                  border: 2px solid #333; \
-                 border-radius: 25px 0 0 25px; \
-                 padding: 8px 16px; \
+                 border-radius: 20px; \
+                 padding: 6px 12px; \
                  font-size: 14px; \
                  font-weight: bold; \
                  z-index: 9999; \
@@ -64,14 +64,13 @@ pub fn show_notification(message: &str) {
         "style",
         "position: fixed; \
          top: 20px; \
-         left: 200px; \
+         left: 180px; \
          right: 20px; \
-         height: 34px; \
+         height: 24px; \
          background-color: rgba(255, 255, 255, 0.95); \
          border: 2px solid #333; \
-         border-left: none; \
-         border-radius: 0 25px 25px 0; \
-         padding: 8px 16px; \
+         border-radius: 20px; \
+         padding: 6px 12px; \
          font-size: 14px; \
          font-weight: bold; \
          z-index: 9999; \

@@ -212,8 +212,8 @@ pub fn run() -> Result<(), JsValue> {
 
     init_ui();
 
-    ui::show_notification("");
     ui::show_connection_notification("🔴 Disconnected");
+    ui::show_notification("");
 
     // start with blank slate
     vec!["host", "guest", "log"].iter().for_each(|&section| disable_section(section));

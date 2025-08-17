@@ -3,17 +3,15 @@ use js_sys::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
 
-/// Shows floating connection status notification. Doesn't disappear automatically.
 pub fn show_connection_notification(status: &str) {
     let doc = dom::document();
 
     // create if missing
-    let status_element = match doc.get_element_by_id("connection_status") {
+    let status_element = match doc.get_element_by_id("notification_pill_left") {
         Some(element) => element,
         None => {
             let div = doc.create_element("div").unwrap();
-            div.set_id("connection_status");
-
+            div.set_id("notification_pill_left");
             div.set_attribute(
                 "style",
                 "position: fixed; \
@@ -36,10 +34,8 @@ pub fn show_connection_notification(status: &str) {
                  color: #333;",
             )
             .unwrap();
-
             let body = doc.body().unwrap();
             body.insert_before(&div, body.first_child().as_ref()).unwrap();
-
             div
         }
     };
@@ -48,19 +44,16 @@ pub fn show_connection_notification(status: &str) {
     status_element.set_text_content(Some(status));
 }
 
-/// Shows a notification in the floating pill that automatically disappears after 5 seconds with fade-out.
 pub fn show_notification(message: &str) {
     let doc = dom::document();
     let body = doc.body().unwrap();
 
-    // Get existing notification or create new one
-    let div = if let Some(existing) = doc.get_element_by_id("notification_pill") {
+    // create if missing
+    let div = if let Some(existing) = doc.get_element_by_id("notification_pill_right") {
         existing
     } else {
         let div = doc.create_element("div").unwrap();
-        div.set_id("notification_pill");
-
-        // position the pill to the right of connection status, filling remaining horizontal space
+        div.set_id("notification_pill_right");
         div.set_attribute(
             "style",
             "position: fixed; \
@@ -86,25 +79,21 @@ pub fn show_notification(message: &str) {
              transition: opacity 0.5s ease-in-out;",
         )
         .unwrap();
-
         body.insert_before(&div, body.first_child().as_ref()).unwrap();
         div
     };
 
-    // set the notification message with consistent text color
-    let current_style = div.get_attribute("style").unwrap_or_default();
-    let updated_style = dom::update_style_property(&current_style, "color", "#333");
-    div.set_attribute("style", &updated_style).unwrap();
+    // update content
     div.set_text_content(Some(message));
 
-    // auto removal after 5 seconds
+    // remove after a while
+    let ms_disappear = 5000;
     let callback = Closure::wrap(Box::new(move || {
         let doc = dom::document();
-        if let Some(pill) = doc.get_element_by_id("notification_pill") {
-            pill.set_text_content(Some(""));
+        if let Some(elem) = doc.get_element_by_id("notification_elem_right") {
+            elem.set_text_content(Some(""));
         }
     }) as Box<dyn FnMut()>);
-    web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(callback.as_ref().unchecked_ref(), 5000).unwrap();
-
+    web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(callback.as_ref().unchecked_ref(), ms_disappear).unwrap();
     callback.forget();
 }

@@ -262,7 +262,6 @@ pub fn run() -> Result<(), JsValue> {
                     if sdp_type == "offer" {
                         // guest: receive offer, create answer
                         let dc_clone_inner = dc_clone.clone();
-
                         let on_connection_established = || {
                             disable_section("host");
                             disable_section("guest");
@@ -279,7 +278,7 @@ pub fn run() -> Result<(), JsValue> {
                             on_connection_established,                        // on_connection_established
                             on_message_received,                              // on_message_received
                             move |dc| {
-                                // on_datachannel_created (already configured)
+                                // on_datachannel_created (already configured) <----- is this necessary?
                                 *dc_clone_inner.borrow_mut() = Some(dc);
                             },
                         )

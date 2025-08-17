@@ -1,3 +1,7 @@
+clone and referencing logic in p2p.lib is pretty messy.
+
+we can put the pc, dc in a struct
+
 drop redundent clones in lib.rs
 
 move more p2p logic into its own module

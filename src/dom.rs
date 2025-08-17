@@ -8,14 +8,21 @@ pub fn document() -> Document {
     DOC.with(|d| d.clone())
 }
 
-/// Binds a lambda to be executed when the specified button element is clicked.
-pub fn onclick<F: 'static + FnMut()>(element: &HtmlButtonElement, function: F) {
-    let callback = Closure::wrap(Box::new(function) as Box<dyn FnMut()>);
-    element.set_onclick(Some(callback.as_ref().unchecked_ref()));
+/// Binds a lambda to be executed when a key is pressed on the specified element.
+pub fn onkeypress<F: 'static + FnMut(KeyboardEvent)>(element: &Element, function: F) {
+    let callback = Closure::wrap(Box::new(function) as Box<dyn FnMut(KeyboardEvent)>);
+    element.add_event_listener_with_callback("keypress", callback.as_ref().unchecked_ref()).unwrap();
     callback.forget();
 }
 
-/// Gets / sets the inner text content of an element by its ID.
+/// Binds a lambda to be executed when the specified element is clicked.
+pub fn onclick<F: 'static + FnMut()>(element: &Element, function: F) {
+    let callback = Closure::wrap(Box::new(function) as Box<dyn FnMut()>);
+    element.add_event_listener_with_callback("click", callback.as_ref().unchecked_ref()).unwrap();
+    callback.forget();
+}
+
+/// Gets or sets the inner text content of an element by its ID.
 ///
 /// For HTML: `<div id="myDiv">hello</div>`
 /// ```rust

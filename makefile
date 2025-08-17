@@ -7,3 +7,7 @@ build:
 build-release:
 	wasm-pack build --release --target web
 	rm pkg/.gitignore
+
+.PHONY: fmt
+fmt:
+	cargo fmt -- --config max_width=500

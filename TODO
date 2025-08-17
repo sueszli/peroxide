@@ -1,1 +1,5 @@
+drop redundent clones in lib.rs
+
+figure out why some notifications aren't shown or seem to fade out irregularly
+
 move more p2p logic into its own module

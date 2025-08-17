@@ -1,7 +1,4 @@
 use crate::dom;
-use js_sys::*;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::*;
 
 /// Independently created, inserted and styled floating DOM node.
 /// Shows connection status notifications.
@@ -68,7 +65,7 @@ pub fn show_notification(message: &str) {
              background-color: rgba(255, 255, 255, 0.95); \
              border: 1.5px solid #333; \
              border-radius: 20px; \
-             padding: 6px 12px; \
+             padding: 6px 12px 6px 20px; \
              font-size: 14px; \
              font-weight: bold; \
              z-index: 9999; \
@@ -78,9 +75,7 @@ pub fn show_notification(message: &str) {
              align-items: center; \
              justify-content: flex-start; \
              text-align: left; \
-             color: #333; \
-             opacity: 1; \
-             transition: color 0.5s ease-in-out;",
+             color: #333;",
         )
         .unwrap();
         body.insert_before(&div, body.first_child().as_ref()).unwrap();
@@ -89,39 +84,4 @@ pub fn show_notification(message: &str) {
 
     // update content
     div.set_text_content(Some(message));
-
-    // fade out text after a while
-    let ms_before_fade = 4000;
-    let fade_callback = Closure::wrap(Box::new(move || {
-        let doc = dom::document();
-        if let Some(elem) = doc.get_element_by_id("notification_pill_right") {
-            elem.set_attribute(
-                "style",
-                "position: fixed; \
-                 top: 20px; \
-                 left: 180px; \
-                 right: 20px; \
-                 height: 24px; \
-                 background-color: rgba(255, 255, 255, 0.95); \
-                 border: 1.5px solid #333; \
-                 border-radius: 20px; \
-                 padding: 6px 12px; \
-                 font-size: 14px; \
-                 font-weight: bold; \
-                 z-index: 9999; \
-                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); \
-                 backdrop-filter: blur(3px); \
-                 display: flex; \
-                 align-items: center; \
-                 justify-content: flex-start; \
-                 text-align: left; \
-                 color: rgba(51, 51, 51, 0); \
-                 opacity: 1; \
-                 transition: color 0.5s ease-in-out;",
-            )
-            .unwrap();
-        }
-    }) as Box<dyn FnMut()>);
-    web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(fade_callback.as_ref().unchecked_ref(), ms_before_fade).unwrap();
-    fade_callback.forget();
 }

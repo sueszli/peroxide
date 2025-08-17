@@ -249,10 +249,8 @@ pub fn run() -> Result<(), JsValue> {
             let btn: Element = btns.item(i).unwrap();
 
             let pc = peer_connection.clone();
-            let dc = data_channel.clone();
             dom::onclick(&btn, move || {
                 let pc_clone = pc.clone();
-                let dc_clone = dc.clone();
 
                 wasm_bindgen_futures::spawn_local(async move {
                     let sdp_str = get_peer_sdp_str();
@@ -261,7 +259,6 @@ pub fn run() -> Result<(), JsValue> {
 
                     if sdp_type == "offer" {
                         // guest: receive offer, create answer
-                        let dc_clone_inner = dc_clone.clone();
                         let on_connection_established = || {
                             disable_section("host");
                             disable_section("guest");
@@ -277,10 +274,6 @@ pub fn run() -> Result<(), JsValue> {
                             |state| ui::show_connection_notification(&state), // on_connection_state_change
                             on_connection_established,                        // on_connection_established
                             on_message_received,                              // on_message_received
-                            move |dc| {
-                                // on_datachannel_created (already configured) <----- is this necessary?
-                                *dc_clone_inner.borrow_mut() = Some(dc);
-                            },
                         )
                         .await;
                         *pc_clone.borrow_mut() = Some(pc);

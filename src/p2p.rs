@@ -81,21 +81,18 @@ where
 /// - `on_connection_status_change` - Callback when connection state changes
 /// - `on_connection_established` - Callback when the data channel opens
 /// - `on_message_received` - Callback when a message is received on the data channel
-/// - `on_datachannel_created` - Callback when data channel is created (and preconfigured)
-pub async fn create_guest_peer_connection<F1, F2, F3, F4, F5>(offer: &str, on_answer_generation: F1, on_connection_status_change: F2, on_connection_established: F3, on_message_received: F4, on_datachannel_created: F5) -> RtcPeerConnection
+pub async fn create_guest_peer_connection<F1, F2, F3, F4>(offer: &str, on_answer_generation: F1, on_connection_status_change: F2, on_connection_established: F3, on_message_received: F4) -> RtcPeerConnection
 where
     F1: 'static + FnMut(String),
     F2: 'static + FnMut(&str),
     F3: 'static + FnMut(),
     F4: 'static + FnMut(String),
-    F5: 'static + FnMut(RtcDataChannel),
 {
     let sdp = js_sys::JSON::parse(offer).unwrap();
     let (pc, _) = create_host_peer_connection(on_answer_generation, on_connection_status_change, || {}, |_| {});
 
     let on_connection_established_rc = Rc::new(RefCell::new(on_connection_established));
     let on_message_received_rc = Rc::new(RefCell::new(on_message_received));
-    let on_datachannel_created_rc = Rc::new(RefCell::new(on_datachannel_created));
 
     let ondatachannel_callback = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
         let dc = e.channel();
@@ -104,8 +101,6 @@ where
         let on_conn_est = on_connection_established_rc.clone();
         let on_msg_recv = on_message_received_rc.clone();
         config_data_channel(&dc, move || on_conn_est.borrow_mut()(), move |msg| on_msg_recv.borrow_mut()(msg));
-
-        on_datachannel_created_rc.borrow_mut()(dc);
     }) as Box<dyn FnMut(RtcDataChannelEvent)>);
     pc.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
     ondatachannel_callback.forget();

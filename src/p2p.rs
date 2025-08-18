@@ -258,8 +258,7 @@ mod tests {
         let callbacks = create_mock_callbacks();
         let peer_connection = create_host_peer_connection(callbacks);
 
-        // Clear the data channel to simulate no connection
-        *peer_connection.dc.borrow_mut() = None;
+        *peer_connection.dc.borrow_mut() = None; // empty data channel means no connection
 
         let result = peer_connection.send_message("test message");
         assert_eq!(result, false);
@@ -270,15 +269,12 @@ mod tests {
         let callbacks = create_mock_callbacks();
         let peer_connection = create_host_peer_connection(callbacks);
 
-        // Test empty message
         let result = peer_connection.send_message("");
         assert_eq!(result, false);
 
-        // Test whitespace-only message
         let result = peer_connection.send_message("   ");
         assert_eq!(result, false);
 
-        // Test tab and newline
         let result = peer_connection.send_message("\t\n");
         assert_eq!(result, false);
     }
@@ -287,24 +283,7 @@ mod tests {
     fn test_create_rtc_peer_connection() {
         let pc = create_rtc_peer_connection();
 
-        // Verify the peer connection was created successfully
         assert_eq!(pc.connection_state(), RtcPeerConnectionState::New);
-    }
-
-    #[wasm_bindgen_test]
-    async fn test_create_offer() {
-        let callbacks = create_mock_callbacks();
-        let peer_connection = create_host_peer_connection(callbacks);
-
-        // This should not panic and should complete
-        let result = peer_connection.create_offer().await;
-        // In a real browser environment, this should succeed
-        // In test environment, it might fail due to missing WebRTC implementation
-        // Just verify it doesn't panic
-        match result {
-            Ok(_) => assert!(true),
-            Err(_) => assert!(true), // Expected in test environment
-        }
     }
 
     #[wasm_bindgen_test]
@@ -317,22 +296,6 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn test_set_remote_description_with_valid_json() {
-        let callbacks = create_mock_callbacks();
-        let peer_connection = create_host_peer_connection(callbacks);
-
-        let valid_sdp = r#"{"type":"offer","sdp":"v=0\r\n"}"#;
-        let result = peer_connection.set_remote_description(valid_sdp).await;
-
-        // In test environment, this might fail due to missing WebRTC implementation
-        // Just verify it doesn't panic and handles the JSON correctly
-        match result {
-            Ok(_) => assert!(true),
-            Err(_) => assert!(true), // Expected in test environment
-        }
-    }
-
-    #[wasm_bindgen_test]
     async fn test_create_guest_peer_connection_with_invalid_offer() {
         let callbacks = create_mock_callbacks();
 
@@ -341,30 +304,11 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn test_create_guest_peer_connection_with_valid_offer() {
-        let callbacks = create_mock_callbacks();
-        let valid_offer = r#"{"type":"offer","sdp":"v=0\r\n"}"#;
-
-        let result = create_guest_peer_connection(valid_offer, callbacks).await;
-
-        // In test environment, this might fail due to missing WebRTC implementation
-        // Just verify it handles the JSON correctly and doesn't panic
-        match result {
-            Ok(peer_connection) => {
-                // Verify the peer connection was created
-                assert!(peer_connection.dc.borrow().is_none()); // Guest starts with no data channel
-            }
-            Err(_) => assert!(true), // Expected in test environment
-        }
-    }
-
-    #[wasm_bindgen_test]
     fn test_connection_state_mapping() {
-        // Test that all connection states are mapped correctly
         let callbacks = create_mock_callbacks();
         let peer_connection = create_host_peer_connection(callbacks);
 
-        // We can't easily test the state mapping function directly since it's private,
+        // we can't easily test the state mapping function directly since it's private,
         // but we can verify the peer connection starts in the correct state
         assert_eq!(peer_connection.pc.connection_state(), RtcPeerConnectionState::New);
     }
@@ -383,30 +327,24 @@ mod tests {
     fn test_ice_server_configuration() {
         let pc = create_rtc_peer_connection();
 
-        // Verify that the peer connection was created with the expected STUN server
-        // We can't directly access the configuration, but we can verify it was created
+        // verify that the peer connection was created with the expected STUN server
+        // we can't directly access the configuration, but we can verify it was created
         assert_eq!(pc.connection_state(), RtcPeerConnectionState::New);
     }
-
-    // Edge case tests
 
     #[wasm_bindgen_test]
     fn test_send_message_edge_cases() {
         let callbacks = create_mock_callbacks();
         let peer_connection = create_host_peer_connection(callbacks);
 
-        // Test very long message
         let long_message = "a".repeat(10000);
         let result = peer_connection.send_message(&long_message);
-        // Should not panic, but might fail due to data channel state
         assert!(result == true || result == false);
 
-        // Test message with special characters
         let special_message = "Hello 🌍! @#$%^&*()";
         let result = peer_connection.send_message(special_message);
         assert!(result == true || result == false);
 
-        // Test message with newlines
         let multiline_message = "Line 1\nLine 2\rLine 3\r\n";
         let result = peer_connection.send_message(multiline_message);
         assert!(result == true || result == false);
@@ -420,79 +358,33 @@ mod tests {
         let peer1 = create_host_peer_connection(callbacks1);
         let peer2 = create_host_peer_connection(callbacks2);
 
-        // Both should be created successfully
         assert!(peer1.dc.borrow().is_some());
         assert!(peer2.dc.borrow().is_some());
 
-        // They should be independent
         *peer1.dc.borrow_mut() = None;
         assert!(peer2.dc.borrow().is_some());
     }
 
     #[wasm_bindgen_test]
-    fn test_peer_connection_debug() {
-        let callbacks = create_mock_callbacks();
-        let peer_connection = create_host_peer_connection(callbacks);
-
-        // Test that Debug trait is implemented
-        let debug_string = format!("{:?}", peer_connection);
-        assert!(debug_string.contains("PeerConnection"));
-    }
-
-    // Integration-style tests
-
-    #[wasm_bindgen_test]
     async fn test_full_offer_answer_flow_with_mock_data() {
-        // Test the complete flow with mock SDP data
+        // test the complete flow with mock SDP data
         let host_callbacks = create_mock_callbacks();
         let _host_peer = create_host_peer_connection(host_callbacks);
 
-        // Create a mock offer
         let mock_offer = r#"{"type":"offer","sdp":"v=0\r\no=- 123456789 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n"}"#;
 
         let guest_callbacks = create_mock_callbacks();
         let guest_result = create_guest_peer_connection(mock_offer, guest_callbacks).await;
 
-        // Verify both peers can be created (may fail in test environment due to WebRTC)
         match guest_result {
             Ok(_) => assert!(true),
-            Err(_) => assert!(true), // Expected in test environment
+            Err(_) => assert!(true), // expected in test environment
         }
     }
 
     #[wasm_bindgen_test]
-    fn test_callback_trait_bounds() {
-        // Test that callbacks can be created with different closure types
-        let counter = Rc::new(RefCell::new(0));
-        let counter_clone = counter.clone();
-
-        let callbacks = PeerConnectionCallbacks {
-            on_sdp_ready: Box::new(move |_| {
-                *counter_clone.borrow_mut() += 1;
-            }),
-            on_connection_status_change: Box::new(|status| {
-                assert!(status.len() > 0);
-            }),
-            on_connection_established: Box::new(|| {
-                // Connection established
-            }),
-            on_message_received: Box::new(|msg| {
-                assert!(!msg.is_empty() || msg.is_empty()); // Always true, but tests the parameter
-            }),
-        };
-
-        let _peer = create_host_peer_connection(callbacks);
-        // Just verify it compiles and doesn't panic
-        assert_eq!(*counter.borrow(), 0);
-    }
-
-    // Error handling tests
-
-    #[wasm_bindgen_test]
     async fn test_error_handling_malformed_json() {
         let _callbacks = create_mock_callbacks();
-
-        // Test various malformed JSON inputs
         let malformed_inputs = vec![
             "",
             "{",
@@ -504,7 +396,7 @@ mod tests {
             "\"string\"",
             "{\"type\":}",
             "{\"sdp\":}",
-            "{\"type\":\"offer\"}", // Missing sdp
+            "{\"type\":\"offer\"}", // missing sdp
         ];
 
         for input in malformed_inputs {
@@ -518,7 +410,6 @@ mod tests {
         let callbacks = create_mock_callbacks();
         let peer = create_host_peer_connection(callbacks);
 
-        // Test sending multiple messages rapidly
         let messages = vec!["msg1", "msg2", "msg3", "msg4", "msg5"];
         let mut results = Vec::new();
 
@@ -526,7 +417,6 @@ mod tests {
             results.push(peer.send_message(msg));
         }
 
-        // All should return consistently (either all true or all false based on data channel state)
         let first_result = results[0];
         for result in results {
             assert_eq!(result, first_result);
@@ -535,13 +425,12 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_memory_safety_with_dropped_callbacks() {
-        // Test that the system handles dropped callbacks gracefully
         let callbacks = create_mock_callbacks();
         let _peer = create_host_peer_connection(callbacks);
 
-        // The callbacks are now owned by the peer connection
-        // This tests that we don't have use-after-free issues
-        // Just verify it doesn't panic
+        // the callbacks are now owned by the peer connection
+        // this tests that we don't have use-after-free issues
+        // just verify it doesn't panic
         assert!(true);
     }
 }

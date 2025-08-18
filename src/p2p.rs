@@ -1,15 +1,12 @@
 //! # WebRTC Peer-to-Peer Connection Protocol
 //!
 //! This module implements a WebRTC peer-to-peer connection protocol between two peers:
-//! a "host" and a "guest".
 //!
-//! # Protocol Overview
-//!
-//! Roles:
-//! - **Host (Offerer)**: The peer that initiates the connection by creating an offer
-//! - **Guest (Answerer)**: The peer that receives the offer and creates an answer
+//! - Host (Offerer): The peer that initiates the connection by creating an offer
+//! - Guest (Answerer): The peer that receives the offer and creates an answer
 //!
 //! Connection Flow:
+//!
 //! 1. Host creates a `PeerConnection` and generates an offer (SDP)
 //! 2. Host shares the offer with the guest (out-of-band, e.g., copy/paste)
 //! 3. Guest receives the offer and creates their own `PeerConnection`
@@ -20,12 +17,14 @@
 //! 8. Data channel opens and peers can exchange messages
 //!
 //! Technical Details:
+//!
 //! - Uses STUN server (stun.l.google.com:19302) for NAT traversal
 //! - Creates a single data channel labeled "app" for message exchange
 //! - Implements the offer/answer model as defined in RFC 3264
 //! - Automatically handles ICE candidate gathering and connection state changes
 //!
 //! References:
+//!
 //! - [RFC 3264: An Offer/Answer Model with SDP](https://datatracker.ietf.org/doc/html/rfc3264)
 //! - [WebRTC API Documentation](https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API)
 
@@ -93,7 +92,7 @@ pub async fn create_guest_peer_connection(offer: &str, callbacks: PeerConnection
     create_rtc_peer_connection()
         .tap(|pc| setup_ice_callback(pc, callbacks.on_sdp_ready))
         .tap(|pc| setup_connection_state_callback(pc, callbacks.on_connection_status_change))
-        .tap(|pc| setup_guest_data_channel(pc, dc_ref.clone(), callbacks.on_connection_established, callbacks.on_message_received).unwrap())
+        .tap(|pc| setup_guest_data_channel_with_callbacks(pc, dc_ref.clone(), callbacks.on_connection_established, callbacks.on_message_received).unwrap())
         .pipe(|pc| async move {
             js_sys::JSON::parse(offer)?.pipe(|sdp| JsFuture::from(pc.set_remote_description(&sdp.into()))).await?;
 
@@ -111,9 +110,10 @@ fn create_rtc_peer_connection() -> RtcPeerConnection {
 fn setup_ice_callback(pc: &RtcPeerConnection, mut callback: Box<dyn FnMut(String)>) {
     Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
         event.candidate().is_none().then(|| {
-            event.current_target().and_then(|t| t.dyn_into::<RtcPeerConnection>().ok()).and_then(|pc| pc.local_description()).and_then(|desc| js_sys::JSON::stringify(&desc).ok()).and_then(|s| s.as_string()).map(|sdp| {
-                console_log!("generated sdp: {}", sdp);
-                callback(sdp);
+            event.current_target().and_then(|t| t.dyn_into::<RtcPeerConnection>().ok()).and_then(|pc| pc.local_description()).and_then(|desc| js_sys::JSON::stringify(&desc).ok()).and_then(|s| s.as_string()).tap(|sdp| console_log!("generated sdp: {:?}", sdp)).tap(|sdp| {
+                if let Some(sdp_str) = sdp {
+                    callback(sdp_str.clone());
+                }
             })
         });
     }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>)
@@ -122,23 +122,24 @@ fn setup_ice_callback(pc: &RtcPeerConnection, mut callback: Box<dyn FnMut(String
 }
 
 fn setup_connection_state_callback(pc: &RtcPeerConnection, mut callback: Box<dyn FnMut(&'static str)>) {
+    let state_mapper = |pc: RtcPeerConnection| match pc.connection_state() {
+        RtcPeerConnectionState::New => "🟡 New",
+        RtcPeerConnectionState::Connecting => "🟡 Connecting",
+        RtcPeerConnectionState::Connected => "🟢 Connected",
+        RtcPeerConnectionState::Disconnected => "🔴 Disconnected",
+        RtcPeerConnectionState::Failed => "🔴 Failed",
+        RtcPeerConnectionState::Closed => "🔴 Closed",
+        _ => "🔴 Unknown error",
+    };
+
     Closure::wrap(Box::new(move |event: Event| {
-        event
-            .current_target()
-            .and_then(|t| t.dyn_into::<RtcPeerConnection>().ok())
-            .map(|pc| match pc.connection_state() {
-                RtcPeerConnectionState::New => "🟡 New",
-                RtcPeerConnectionState::Connecting => "🟡 Connecting",
-                RtcPeerConnectionState::Connected => "🟢 Connected",
-                RtcPeerConnectionState::Disconnected => "🔴 Disconnected",
-                RtcPeerConnectionState::Failed => "🔴 Failed",
-                RtcPeerConnectionState::Closed => "🔴 Closed",
-                _ => "🔴 Unknown error",
-            })
-            .map(|state| {
+        if let Some(target) = event.current_target() {
+            if let Ok(pc) = target.dyn_into::<RtcPeerConnection>() {
+                let state = state_mapper(pc);
                 console_log!("connection status changed: {}", state);
                 callback(state);
-            });
+            }
+        }
     }) as Box<dyn FnMut(Event)>)
     .tap(|closure| pc.set_onconnectionstatechange(Some(closure.as_ref().unchecked_ref())))
     .forget();
@@ -153,16 +154,17 @@ fn setup_data_channel_callbacks(dc: &RtcDataChannel, mut on_open: Box<dyn FnMut(
     .forget();
 
     Closure::wrap(Box::new(move |event: MessageEvent| {
-        event.data().as_string().map(|data| {
-            console_log!("message received: {}", data);
-            on_message(data);
+        event.data().as_string().tap(|data| console_log!("message received: {:?}", data)).tap(|data| {
+            if let Some(data_str) = data {
+                on_message(data_str.clone());
+            }
         });
     }) as Box<dyn FnMut(MessageEvent)>)
     .tap(|closure| dc.set_onmessage(Some(closure.as_ref().unchecked_ref())))
     .forget();
 }
 
-fn setup_guest_data_channel(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Option<RtcDataChannel>>>, on_open: Box<dyn FnMut()>, on_message: Box<dyn FnMut(String)>) -> Result<(), JsValue> {
+fn setup_guest_data_channel_with_callbacks(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Option<RtcDataChannel>>>, on_open: Box<dyn FnMut()>, on_message: Box<dyn FnMut(String)>) -> Result<(), JsValue> {
     let callbacks = (Rc::new(RefCell::new(Some(on_open))), Rc::new(RefCell::new(Some(on_message))));
 
     Closure::wrap({

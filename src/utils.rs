@@ -49,8 +49,6 @@ pub fn compress_string(sdp: &str) -> String {
 
 pub fn decompress_string(compressed_str: &str) -> String {
     let mut decompressed = Vec::new();
-    ZlibDecoder::new(&BASE64_STANDARD.decode(compressed_str).unwrap()[..])
-        .read_to_end(&mut decompressed)
-        .unwrap();
+    ZlibDecoder::new(&BASE64_STANDARD.decode(compressed_str).unwrap()[..]).read_to_end(&mut decompressed).unwrap();
     std::str::from_utf8(&decompressed).unwrap().to_string()
 }

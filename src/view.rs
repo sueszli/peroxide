@@ -164,21 +164,13 @@ const ROLE_SELECTION_HTML: &str = r#"
     }
     </style>
 "#;
-pub fn render_role_selection(
-    on_host_selection: impl Fn() + 'static,
-    on_guest_selection: impl Fn() + 'static,
-) {
-    dom::document()
-        .body()
-        .unwrap()
-        .set_inner_html(ROLE_SELECTION_HTML);
+pub fn render_role_selection(on_host_selection: impl Fn() + 'static, on_guest_selection: impl Fn() + 'static) {
+    dom::document().body().unwrap().set_inner_html(ROLE_SELECTION_HTML);
 
     let host_btn = dom::document().get_element_by_id("host_selection").unwrap();
     dom::onclick(&host_btn, move || on_host_selection());
 
-    let guest_btn = dom::document()
-        .get_element_by_id("guest_selection")
-        .unwrap();
+    let guest_btn = dom::document().get_element_by_id("guest_selection").unwrap();
     dom::onclick(&guest_btn, move || on_guest_selection());
 }
 
@@ -234,17 +226,11 @@ pub fn render_host(callbacks: P2PCallbacks) {
     let peer_connection3 = peer_connection.clone();
     let p2p_callbacks = p2p::PeerConnectionCallbacks {
         on_sdp_ready: Box::new(|json| {
-            let elem = dom::document()
-                .get_element_by_id("my_sdp")
-                .unwrap()
-                .dyn_into::<HtmlTextAreaElement>()
-                .unwrap();
+            let elem = dom::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
             let sdp_str = utils::compress_string(&json);
             elem.set_inner_html(&sdp_str);
         }),
-        on_connection_status_change: Box::new(|state_str| {
-            update_connection_notification(&state_str)
-        }),
+        on_connection_status_change: Box::new(|state_str| update_connection_notification(&state_str)),
         on_connection_established: Box::new(move || {
             update_notification("Connection established successfully!");
             (callbacks.on_connection_established)(peer_connection3.clone());
@@ -331,17 +317,11 @@ pub fn render_guest(callbacks: P2PCallbacks) {
         wasm_bindgen_futures::spawn_local(async move {
             let p2p_callbacks = p2p::PeerConnectionCallbacks {
                 on_sdp_ready: Box::new(|json| {
-                    let elem = dom::document()
-                        .get_element_by_id("my_sdp")
-                        .unwrap()
-                        .dyn_into::<HtmlTextAreaElement>()
-                        .unwrap();
+                    let elem = dom::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
                     let sdp_str = utils::compress_string(&json);
                     elem.set_inner_html(&sdp_str);
                 }),
-                on_connection_status_change: Box::new(|state| {
-                    update_connection_notification(&state)
-                }),
+                on_connection_status_change: Box::new(|state| update_connection_notification(&state)),
                 on_connection_established: Box::new(move || {
                     update_notification("Connection established successfully!");
                     (callbacks.on_connection_established)(peer_connection3.clone());
@@ -350,9 +330,7 @@ pub fn render_guest(callbacks: P2PCallbacks) {
                     (callbacks.on_message)(msg);
                 }),
             };
-            let peer_conn = p2p::create_guest_peer_connection(&sdp_str, p2p_callbacks)
-                .await
-                .unwrap();
+            let peer_conn = p2p::create_guest_peer_connection(&sdp_str, p2p_callbacks).await.unwrap();
             *peer_connection2.borrow_mut() = Some(peer_conn);
             update_notification("Created response code! Share it with your host.");
         });

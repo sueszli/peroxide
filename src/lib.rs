@@ -60,22 +60,8 @@ const CHAT_HTML: &str = r#"
 pub fn render_chat(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>) {
     dom::document().body().unwrap().set_inner_html(CHAT_HTML);
 
-    let get_message = || {
-        dom::document()
-            .get_element_by_id("message")
-            .unwrap()
-            .dyn_into::<HtmlTextAreaElement>()
-            .unwrap()
-            .value()
-    };
-    let clear_message = || {
-        dom::document()
-            .get_element_by_id("message")
-            .unwrap()
-            .dyn_into::<HtmlTextAreaElement>()
-            .unwrap()
-            .set_value("")
-    };
+    let get_message = || dom::document().get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
+    let clear_message = || dom::document().get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().set_value("");
 
     let text_area = dom::document().get_element_by_id("message").unwrap();
     let con_clone = peer_connection.clone();
@@ -126,10 +112,7 @@ pub fn run() -> Result<(), JsValue> {
             append_log(&format!("Peer: {}", msg));
         },
     };
-    view::render_role_selection(
-        move || view::render_host(callbacks),
-        move || view::render_guest(callbacks),
-    );
+    view::render_role_selection(move || view::render_host(callbacks), move || view::render_guest(callbacks));
 
     Ok(())
 }

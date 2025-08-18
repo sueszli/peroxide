@@ -51,55 +51,63 @@ pub struct PeerConnection {
 
 impl PeerConnection {
     pub fn send_message(&self, message: &str) -> bool {
+        console_log!("sent message: {}", message);
         self.dc
             .borrow()
             .as_ref()
             .filter(|dc: &&RtcDataChannel| dc.ready_state() == RtcDataChannelState::Open && !message.trim().is_empty())
-            .map(|dc| dc.send_with_str(message).ok().pipe(|_| console_log!("message sent: {}", message)).pipe(|_| true))
+            .map(|dc| dc.send_with_str(message).ok().pipe(|_| true))
             .unwrap_or(false)
     }
 
     pub async fn create_offer(&self) -> Result<(), JsValue> {
-        JsFuture::from(self.pc.create_offer()).await?.pipe(|offer| JsFuture::from(self.pc.set_local_description(&offer.into()))).await.map(|_| ())
+        let offer = JsFuture::from(self.pc.create_offer()).await?;
+        JsFuture::from(self.pc.set_local_description(&offer.into())).await?;
+        Ok(())
     }
 
     pub async fn set_remote_description(&self, sdp: &str) -> Result<(), JsValue> {
-        js_sys::JSON::parse(sdp)?.pipe(|sdp| JsFuture::from(self.pc.set_remote_description(&sdp.into()))).await.map(|_| ())
+        let sdp = js_sys::JSON::parse(sdp)?;
+        JsFuture::from(self.pc.set_remote_description(&sdp.into())).await?;
+        Ok(())
     }
 }
 
 pub fn create_host_peer_connection(callbacks: PeerConnectionCallbacks) -> PeerConnection {
-    create_rtc_peer_connection().pipe(|pc| (pc.create_data_channel("app"), pc)).pipe(|(dc, pc)| {
-        Rc::new(RefCell::new(Some(dc.clone())))
-            .tap(|_| setup_ice_callback(&pc, callbacks.on_sdp_ready))
-            .tap(|_| setup_connection_state_callback(&pc, callbacks.on_connection_status_change))
-            .tap(|_| setup_data_channel_callbacks(&dc, callbacks.on_connection_established, callbacks.on_message_received))
-            .pipe(|dc_ref| PeerConnection { pc, dc: dc_ref })
-    })
+    let pc = create_rtc_peer_connection();
+    let dc = pc.create_data_channel("app");
+    let dc_ref = Rc::new(RefCell::new(Some(dc.clone())));
+
+    setup_ice_callback(&pc, callbacks.on_sdp_ready);
+    setup_connection_state_callback(&pc, callbacks.on_connection_status_change);
+    setup_data_channel_callbacks(&dc, callbacks.on_connection_established, callbacks.on_message_received);
+
+    PeerConnection { pc, dc: dc_ref }
 }
 
 pub async fn create_guest_peer_connection(offer: &str, callbacks: PeerConnectionCallbacks) -> Result<PeerConnection, JsValue> {
     let dc_ref = Rc::new(RefCell::new(None));
+    let pc = create_rtc_peer_connection();
 
-    create_rtc_peer_connection()
-        .tap(|pc| setup_ice_callback(pc, callbacks.on_sdp_ready))
-        .tap(|pc| setup_connection_state_callback(pc, callbacks.on_connection_status_change))
-        .tap(|pc| setup_guest_data_channel_callbacks(pc, dc_ref.clone(), callbacks.on_connection_established, callbacks.on_message_received).unwrap())
-        .pipe(|pc| async move {
-            js_sys::JSON::parse(offer)?.pipe(|sdp| JsFuture::from(pc.set_remote_description(&sdp.into()))).await?;
+    setup_ice_callback(&pc, callbacks.on_sdp_ready);
+    setup_connection_state_callback(&pc, callbacks.on_connection_status_change);
+    setup_guest_data_channel_callbacks(&pc, dc_ref.clone(), callbacks.on_connection_established, callbacks.on_message_received)?;
 
-            JsFuture::from(pc.create_answer()).await?.pipe(|answer| JsFuture::from(pc.set_local_description(&answer.into()))).await?;
+    let sdp = js_sys::JSON::parse(offer)?;
+    JsFuture::from(pc.set_remote_description(&sdp.into())).await?;
 
-            Ok(PeerConnection { pc, dc: dc_ref })
-        })
-        .await
+    let answer = JsFuture::from(pc.create_answer()).await?;
+    JsFuture::from(pc.set_local_description(&answer.into())).await?;
+
+    Ok(PeerConnection { pc, dc: dc_ref })
 }
 
 fn create_rtc_peer_connection() -> RtcPeerConnection {
-    RtcIceServer::new()
-        .tap(|s| s.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302"))))
-        .pipe(|ice_server| RtcConfiguration::new().tap(|c| c.set_ice_servers(&js_sys::Array::of1(&ice_server))))
-        .pipe(|config| RtcPeerConnection::new_with_configuration(&config).unwrap())
+    let ice_server = RtcIceServer::new();
+    ice_server.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")));
+    let config = RtcConfiguration::new();
+    config.set_ice_servers(&js_sys::Array::of1(&ice_server));
+    RtcPeerConnection::new_with_configuration(&config).unwrap()
 }
 
 fn setup_ice_callback(pc: &RtcPeerConnection, mut callback: Box<dyn FnMut(String)>) {
@@ -134,7 +142,7 @@ fn setup_connection_state_callback(pc: &RtcPeerConnection, mut callback: Box<dyn
         _ => "🔴 Unknown error",
     };
 
-    Closure::wrap(Box::new(move |event: Event| {
+    let closure = Closure::wrap(Box::new(move |event: Event| {
         if let Some(target) = event.current_target() {
             if let Ok(pc) = target.dyn_into::<RtcPeerConnection>() {
                 let state = state_mapper(pc);
@@ -142,51 +150,55 @@ fn setup_connection_state_callback(pc: &RtcPeerConnection, mut callback: Box<dyn
                 callback(state);
             }
         }
-    }) as Box<dyn FnMut(Event)>)
-    .tap(|closure| pc.set_onconnectionstatechange(Some(closure.as_ref().unchecked_ref())))
-    .forget();
+    }) as Box<dyn FnMut(Event)>);
+
+    pc.set_onconnectionstatechange(Some(closure.as_ref().unchecked_ref()));
+    closure.forget();
 }
 
 fn setup_data_channel_callbacks(dc: &RtcDataChannel, mut on_open: Box<dyn FnMut()>, mut on_message: Box<dyn FnMut(String)>) {
-    Closure::wrap(Box::new(move || {
+    let open_closure = Closure::wrap(Box::new(move || {
         console_log!("data channel opened");
         on_open();
-    }) as Box<dyn FnMut()>)
-    .tap(|closure| dc.set_onopen(Some(closure.as_ref().unchecked_ref())))
-    .forget();
+    }) as Box<dyn FnMut()>);
+    dc.set_onopen(Some(open_closure.as_ref().unchecked_ref()));
+    open_closure.forget();
 
-    Closure::wrap(Box::new(move |event: MessageEvent| {
-        event.data().as_string().tap(|data| console_log!("message received: {:?}", data)).tap(|data| {
-            if let Some(data_str) = data {
-                on_message(data_str.clone());
-            }
-        });
-    }) as Box<dyn FnMut(MessageEvent)>)
-    .tap(|closure| dc.set_onmessage(Some(closure.as_ref().unchecked_ref())))
-    .forget();
+    let message_closure = Closure::wrap(Box::new(move |event: MessageEvent| {
+        let data = event.data().as_string();
+        console_log!("message received: {:?}", data);
+        if let Some(data_str) = data {
+            on_message(data_str);
+        }
+    }) as Box<dyn FnMut(MessageEvent)>);
+    dc.set_onmessage(Some(message_closure.as_ref().unchecked_ref()));
+    message_closure.forget();
 }
 
 fn setup_guest_data_channel_callbacks(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Option<RtcDataChannel>>>, on_open: Box<dyn FnMut()>, on_message: Box<dyn FnMut(String)>) -> Result<(), JsValue> {
     let callbacks = (Rc::new(RefCell::new(Some(on_open))), Rc::new(RefCell::new(Some(on_message))));
 
-    Closure::wrap({
+    let closure = Closure::wrap({
         let dc_storage = dc_storage.clone();
         let (on_open, on_message) = callbacks;
 
         Box::new(move |e: RtcDataChannelEvent| {
-            e.channel()
-                .tap(|dc| console_log!("data channel created: {}", dc.label()))
-                .tap(|dc| {
-                    (on_open.borrow_mut().take(), on_message.borrow_mut().take()).pipe(|(open_cb, msg_cb)| match (open_cb, msg_cb) {
-                        (Some(open), Some(msg)) => setup_data_channel_callbacks(dc, open, msg),
-                        _ => {}
-                    })
-                })
-                .pipe(|dc| *dc_storage.borrow_mut() = Some(dc));
+            let dc = e.channel();
+            console_log!("data channel created: {}", dc.label());
+
+            let open_cb = on_open.borrow_mut().take();
+            let msg_cb = on_message.borrow_mut().take();
+
+            if let (Some(open), Some(msg)) = (open_cb, msg_cb) {
+                setup_data_channel_callbacks(&dc, open, msg);
+            }
+
+            *dc_storage.borrow_mut() = Some(dc);
         }) as Box<dyn FnMut(RtcDataChannelEvent)>
-    })
-    .tap(|closure| pc.set_ondatachannel(Some(closure.as_ref().unchecked_ref())))
-    .forget();
+    });
+
+    pc.set_ondatachannel(Some(closure.as_ref().unchecked_ref()));
+    closure.forget();
 
     Ok(())
 }

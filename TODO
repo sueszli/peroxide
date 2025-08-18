@@ -1,6 +1,8 @@
-- clean up memory management
-    - get rid of unnecessary clones
-    - put all variables inside the inner most closure
+- make compression better by parsing the json, then using a more efficient binary format
+
+- use a better abstraction for message channel between peers (send (function that you can call with a string), on_message (function that gets evoked when a message arrives))
+
+- show the frames per second at bottom part in a pixel font
 
 - implement game
     - implement local mode for testing → ie. press "x" to toggle local mode, then use arrow keys and wasd to control the two players

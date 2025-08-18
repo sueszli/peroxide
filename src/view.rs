@@ -1,5 +1,5 @@
 //! Views work similar to a SPA where you dynamically re-render each page instead of fetching new HTML.
-//! They work by replacing the entire `body` element with a new one.
+//! They replace the content of the `<body>` element.
 
 use crate::p2p;
 use crate::utils;
@@ -37,13 +37,13 @@ pub fn init() {
 
 /// Shows connection status notifications.
 /// This element is placed outside of the `body`, so it can't be accidentally removed.
+/// Uses inline styling so it doesn't affect other elements.
 pub fn update_connection_notification(status: &str) {
     let doc = utils::document();
 
     // create if missing
     let status_element = match doc.get_element_by_id("notification_pill_left") {
         Some(element) => element,
-        // inline styling so it doesn't affect any other element
         None => {
             let div = doc.create_element("div").unwrap();
             div.set_id("notification_pill_left");
@@ -53,7 +53,7 @@ pub fn update_connection_notification(status: &str) {
                  top: 20px; \
                  left: 20px; \
                  height: 24px; \
-                 width: 130px; \
+                 width: 150px; \
                  background-color: rgba(255, 255, 255, 0.95); \
                  border: 1.5px solid #333; \
                  border-radius: 20px; \
@@ -82,6 +82,7 @@ pub fn update_connection_notification(status: &str) {
 
 /// Shows general user notifications.
 /// This element is placed outside of the `body`, so it can't be accidentally removed.
+/// Uses inline styling so it doesn't affect other elements.
 pub fn update_notification(message: &str) {
     let doc = utils::document();
 
@@ -95,7 +96,7 @@ pub fn update_notification(message: &str) {
             "style",
             "position: fixed; \
              top: 20px; \
-             left: 180px; \
+             left: 200px; \
              right: 20px; \
              height: 24px; \
              background-color: rgba(255, 255, 255, 0.95); \
@@ -132,7 +133,7 @@ const ROLE_SELECTION_HTML: &str = r#"
     </div>
         <h2>Choose your role</h2>
 
-        <p>This application establishes a peer-to-peer connection between two users. You can choose to be the host or the guest.</p>
+        <p>Connect directly with another user without any servers! One user chooses "Host" to get an invite code, the other chooses "Guest" to reply with a response code. Just copy and paste the two codes between each other to link up.</p>
 
         <div>
             <button id="host_selection">Host</button>
@@ -149,11 +150,12 @@ const ROLE_SELECTION_HTML: &str = r#"
         margin-bottom: 2rem;
     }
     h2 {
-        margin-top: 6rem;
+        margin-top: 7rem;
     }
     button {
         cursor: pointer;
         font-family: 'Lucida Console', monospace;
+        margin-top: 1rem;
         padding: 0.5rem;
         margin: 1rem 1rem;
         
@@ -198,7 +200,7 @@ const HOST_HTML: &str = r#"
             margin-bottom: 2rem;
         }
         h2 {
-            margin-top: 6rem;
+            margin-top: 7rem;
         }
         textarea {
             width: 100%;
@@ -207,6 +209,7 @@ const HOST_HTML: &str = r#"
         button {
             cursor: pointer;
             font-family: 'Lucida Console', monospace;
+            margin-top: 1rem;
             padding: 0.5rem;
 
             background-color: #f0f0f0;
@@ -220,46 +223,48 @@ pub fn render_host(callbacks: ActorCallbacks) {
 
     let peer_connection = Rc::new(RefCell::new(None));
 
-    // stage 1: create offer
-    let peer_connection2 = peer_connection.clone();
-    let peer_connection3 = peer_connection.clone();
-    let p2p_callbacks = p2p::PeerConnectionCallbacks {
-        on_sdp_ready: Box::new(|json| {
-            let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-            let sdp_str = utils::compress_string(&json);
-            elem.set_inner_html(&sdp_str);
-        }),
-        on_connection_status_change: Box::new(|state_str| update_connection_notification(&state_str)),
-        on_connection_established: Box::new(move || {
+    let update_my_sdp = |json: String| {
+        let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+        let sdp_str = utils::compress_string(&json);
+        elem.set_inner_html(&sdp_str);
+    };
+    let on_established = {
+        let pc_ref = peer_connection.clone();
+        move || {
             update_notification("Connection established successfully!");
-            (callbacks.on_connection_established)(peer_connection3.clone());
-        }),
-        on_message_received: Box::new(move |msg| {
-            (callbacks.on_message)(msg);
-        }),
+            (callbacks.on_connection_established)(pc_ref.clone());
+        }
+    };
+    let p2p_callbacks = p2p::PeerConnectionCallbacks {
+        on_sdp_ready: Box::new(update_my_sdp),
+        on_connection_status_change: Box::new(|state_str| update_connection_notification(&state_str)),
+        on_connection_established: Box::new(on_established),
+        on_message_received: Box::new(move |msg| (callbacks.on_message)(msg)),
     };
     let pc = p2p::create_host_peer_connection(p2p_callbacks);
+    let pc_ref = peer_connection.clone();
     wasm_bindgen_futures::spawn_local(async move {
         pc.create_offer().await.unwrap();
-        *peer_connection2.borrow_mut() = Some(pc);
+        *pc_ref.borrow_mut() = Some(pc);
         update_notification("Created invite code! Share it with your Guest.");
     });
 
-    // stage 3: receive answer
-    let btn = utils::document().get_element_by_id("connect").unwrap();
-    utils::onclick(&btn, move || {
-        let elem = utils::document().get_element_by_id("peer_sdp").unwrap();
-        let content = elem.dyn_into::<HtmlTextAreaElement>().unwrap().value();
-        let sdp_str = utils::decompress_string(&content);
-
-        let peer_connection4 = peer_connection.clone();
-        wasm_bindgen_futures::spawn_local(async move {
-            if let Some(con) = peer_connection4.borrow().as_ref() {
-                con.set_remote_description(&sdp_str).await.unwrap();
-                update_notification("Attempting to establish connection...");
-            }
-        });
-    });
+    let connect_handler = {
+        let pc_ref = peer_connection.clone();
+        move || {
+            let content = utils::document().get_element_by_id("peer_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
+            let sdp_str = utils::decompress_string(&content);
+            let pc_ref = pc_ref.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                if let Some(con) = pc_ref.borrow().as_ref() {
+                    con.set_remote_description(&sdp_str).await.unwrap();
+                    update_notification("Attempting to establish connection...");
+                }
+            });
+        }
+    };
+    let connect_btn = utils::document().get_element_by_id("connect").unwrap();
+    utils::onclick(&connect_btn, connect_handler);
 }
 
 const GUEST_HTML: &str = r#"
@@ -281,7 +286,7 @@ const GUEST_HTML: &str = r#"
             margin-bottom: 2rem;
         }
         h2 {
-            margin-top: 6rem;
+            margin-top: 7rem;
         }
         textarea {
             width: 100%;
@@ -290,6 +295,7 @@ const GUEST_HTML: &str = r#"
         button {
             cursor: pointer;
             font-family: 'Lucida Console', monospace;
+            margin-top: 1rem;
             padding: 0.5rem;
 
             background-color: #f0f0f0;
@@ -301,37 +307,38 @@ const GUEST_HTML: &str = r#"
 pub fn render_guest(callbacks: ActorCallbacks) {
     utils::document().body().unwrap().set_inner_html(GUEST_HTML);
 
-    // stage 2: create answer
     let peer_connection = Rc::new(RefCell::new(None));
 
-    let btn = utils::document().get_element_by_id("connect").unwrap();
-    utils::onclick(&btn, move || {
-        let elem = utils::document().get_element_by_id("peer_sdp").unwrap();
-        let content = elem.dyn_into::<HtmlTextAreaElement>().unwrap().value();
-        let sdp_str = utils::decompress_string(&content);
+    let update_my_sdp = |json: String| {
+        let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+        let sdp_str = utils::compress_string(&json);
+        elem.set_inner_html(&sdp_str);
+    };
 
-        let peer_connection2 = peer_connection.clone();
-        let peer_connection3 = peer_connection.clone();
+    let connect_handler = {
+        let pc_ref = peer_connection.clone();
+        move || {
+            let content = utils::document().get_element_by_id("peer_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
+            let sdp_str = utils::decompress_string(&content);
+            let pc_ref = pc_ref.clone();
 
-        wasm_bindgen_futures::spawn_local(async move {
-            let p2p_callbacks = p2p::PeerConnectionCallbacks {
-                on_sdp_ready: Box::new(|json| {
-                    let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-                    let sdp_str = utils::compress_string(&json);
-                    elem.set_inner_html(&sdp_str);
-                }),
-                on_connection_status_change: Box::new(|state| update_connection_notification(&state)),
-                on_connection_established: Box::new(move || {
+            wasm_bindgen_futures::spawn_local(async move {
+                let pc_ref_for_callback = pc_ref.clone();
+                let on_established = move || {
                     update_notification("Connection established successfully!");
-                    (callbacks.on_connection_established)(peer_connection3.clone());
-                }),
-                on_message_received: Box::new(move |msg| {
-                    (callbacks.on_message)(msg);
-                }),
-            };
-            let peer_conn = p2p::create_guest_peer_connection(&sdp_str, p2p_callbacks).await.unwrap();
-            *peer_connection2.borrow_mut() = Some(peer_conn);
-            update_notification("Created response code! Share it with your host.");
-        });
-    });
+                    (callbacks.on_connection_established)(pc_ref_for_callback.clone());
+                };
+                let p2p_callbacks = p2p::PeerConnectionCallbacks {
+                    on_sdp_ready: Box::new(update_my_sdp),
+                    on_connection_status_change: Box::new(|state| update_connection_notification(&state)),
+                    on_connection_established: Box::new(on_established),
+                    on_message_received: Box::new(move |msg| (callbacks.on_message)(msg)),
+                };
+                *pc_ref.borrow_mut() = Some(p2p::create_guest_peer_connection(&sdp_str, p2p_callbacks).await.unwrap());
+                update_notification("Created response code! Share it with your host.");
+            });
+        }
+    };
+    let connect_btn = utils::document().get_element_by_id("connect").unwrap();
+    utils::onclick(&connect_btn, connect_handler);
 }

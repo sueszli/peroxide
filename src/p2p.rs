@@ -94,21 +94,27 @@ pub async fn create_guest_peer_connection(offer: &str, callbacks: PeerConnection
     setup_ice_candidate_callback(&pc, callbacks.on_sdp_ready);
     setup_connection_state_callback(&pc, callbacks.on_connection_status_change);
 
-    let on_connection_established = Rc::new(RefCell::new(callbacks.on_connection_established));
-    let on_message_received = Rc::new(RefCell::new(callbacks.on_message_received));
-
     let dc_storage = Rc::new(RefCell::new(None));
-    let dc_storage_clone = dc_storage.clone();
 
-    let ondatachannel_callback = Closure::wrap(Box::new(move |e: RtcDataChannelEvent| {
-        let dc = e.channel();
-        console_log!("data channel created: {}", dc.label());
-        *dc_storage_clone.borrow_mut() = Some(dc.clone());
-
-        let on_conn_est = on_connection_established.clone();
-        let on_msg_recv = on_message_received.clone();
-        setup_data_channel_callbacks(&dc, Box::new(move || on_conn_est.borrow_mut()()), Box::new(move |data| on_msg_recv.borrow_mut()(data)));
-    }) as Box<dyn FnMut(RtcDataChannelEvent)>);
+    let ondatachannel_callback = Closure::wrap({
+        let dc_storage = dc_storage.clone();
+        let on_connection_established = Rc::new(RefCell::new(callbacks.on_connection_established));
+        let on_message_received = Rc::new(RefCell::new(callbacks.on_message_received));
+        
+        Box::new(move |e: RtcDataChannelEvent| {
+            let dc = e.channel();
+            console_log!("data channel created: {}", dc.label());
+            
+            let on_conn_est = on_connection_established.clone();
+            let on_msg_recv = on_message_received.clone();
+            setup_data_channel_callbacks(&dc, 
+                Box::new(move || on_conn_est.borrow_mut()()), 
+                Box::new(move |data| on_msg_recv.borrow_mut()(data))
+            );
+            
+            *dc_storage.borrow_mut() = Some(dc);
+        }) as Box<dyn FnMut(RtcDataChannelEvent)>
+    });
     pc.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
     ondatachannel_callback.forget();
 

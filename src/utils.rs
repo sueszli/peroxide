@@ -4,7 +4,6 @@ use std::io::{Read, Write};
 use wasm_bindgen::{JsCast, prelude::*};
 use web_sys::*;
 
-
 thread_local! {
     static DOC: Document = web_sys::window().unwrap().document().unwrap();
 }

@@ -1,7 +1,6 @@
 //! Views work similar to a SPA where you dynamically re-render each page instead of fetching new HTML.
 //! They work by replacing the entire `body` element with a new one.
 
-use crate::dom;
 use crate::p2p;
 use crate::utils;
 
@@ -22,7 +21,7 @@ const GLOBAL_STYLING: &str = r#"
 "#;
 pub fn init() {
     // placed in head
-    let doc = dom::document();
+    let doc = utils::document();
     let head = doc.head().unwrap();
     let style = doc.create_element("style").unwrap();
     style.set_text_content(Some(GLOBAL_STYLING));
@@ -39,7 +38,7 @@ pub fn init() {
 /// Shows connection status notifications.
 /// This element is placed outside of the `body`, so it can't be accidentally removed.
 pub fn update_connection_notification(status: &str) {
-    let doc = dom::document();
+    let doc = utils::document();
 
     // create if missing
     let status_element = match doc.get_element_by_id("notification_pill_left") {
@@ -84,7 +83,7 @@ pub fn update_connection_notification(status: &str) {
 /// Shows general user notifications.
 /// This element is placed outside of the `body`, so it can't be accidentally removed.
 pub fn update_notification(message: &str) {
-    let doc = dom::document();
+    let doc = utils::document();
 
     // create if missing
     let div = if let Some(existing) = doc.get_element_by_id("notification_pill_right") {
@@ -165,13 +164,13 @@ const ROLE_SELECTION_HTML: &str = r#"
     </style>
 "#;
 pub fn render_role_selection(on_host_selection: impl Fn() + 'static, on_guest_selection: impl Fn() + 'static) {
-    dom::document().body().unwrap().set_inner_html(ROLE_SELECTION_HTML);
+    utils::document().body().unwrap().set_inner_html(ROLE_SELECTION_HTML);
 
-    let host_btn = dom::document().get_element_by_id("host_selection").unwrap();
-    dom::onclick(&host_btn, move || on_host_selection());
+    let host_btn = utils::document().get_element_by_id("host_selection").unwrap();
+    utils::onclick(&host_btn, move || on_host_selection());
 
-    let guest_btn = dom::document().get_element_by_id("guest_selection").unwrap();
-    dom::onclick(&guest_btn, move || on_guest_selection());
+    let guest_btn = utils::document().get_element_by_id("guest_selection").unwrap();
+    utils::onclick(&guest_btn, move || on_guest_selection());
 }
 
 #[derive(Clone, Copy)]
@@ -217,7 +216,7 @@ const HOST_HTML: &str = r#"
     </style>
 "#;
 pub fn render_host(callbacks: P2PCallbacks) {
-    dom::document().body().unwrap().set_inner_html(HOST_HTML);
+    utils::document().body().unwrap().set_inner_html(HOST_HTML);
 
     let peer_connection = Rc::new(RefCell::new(None));
 
@@ -226,7 +225,7 @@ pub fn render_host(callbacks: P2PCallbacks) {
     let peer_connection3 = peer_connection.clone();
     let p2p_callbacks = p2p::PeerConnectionCallbacks {
         on_sdp_ready: Box::new(|json| {
-            let elem = dom::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+            let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
             let sdp_str = utils::compress_string(&json);
             elem.set_inner_html(&sdp_str);
         }),
@@ -247,9 +246,9 @@ pub fn render_host(callbacks: P2PCallbacks) {
     });
 
     // stage 3: receive answer
-    let btn = dom::document().get_element_by_id("connect").unwrap();
-    dom::onclick(&btn, move || {
-        let elem = dom::document().get_element_by_id("peer_sdp").unwrap();
+    let btn = utils::document().get_element_by_id("connect").unwrap();
+    utils::onclick(&btn, move || {
+        let elem = utils::document().get_element_by_id("peer_sdp").unwrap();
         let content = elem.dyn_into::<HtmlTextAreaElement>().unwrap().value();
         let sdp_str = utils::decompress_string(&content);
 
@@ -300,14 +299,14 @@ const GUEST_HTML: &str = r#"
     </style>
 "#;
 pub fn render_guest(callbacks: P2PCallbacks) {
-    dom::document().body().unwrap().set_inner_html(GUEST_HTML);
+    utils::document().body().unwrap().set_inner_html(GUEST_HTML);
 
     // stage 2: create answer
     let peer_connection = Rc::new(RefCell::new(None));
 
-    let btn = dom::document().get_element_by_id("connect").unwrap();
-    dom::onclick(&btn, move || {
-        let elem = dom::document().get_element_by_id("peer_sdp").unwrap();
+    let btn = utils::document().get_element_by_id("connect").unwrap();
+    utils::onclick(&btn, move || {
+        let elem = utils::document().get_element_by_id("peer_sdp").unwrap();
         let content = elem.dyn_into::<HtmlTextAreaElement>().unwrap().value();
         let sdp_str = utils::decompress_string(&content);
 
@@ -317,7 +316,7 @@ pub fn render_guest(callbacks: P2PCallbacks) {
         wasm_bindgen_futures::spawn_local(async move {
             let p2p_callbacks = p2p::PeerConnectionCallbacks {
                 on_sdp_ready: Box::new(|json| {
-                    let elem = dom::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
+                    let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
                     let sdp_str = utils::compress_string(&json);
                     elem.set_inner_html(&sdp_str);
                 }),

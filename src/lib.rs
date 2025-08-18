@@ -1,7 +1,6 @@
 #[macro_use]
-mod dom;
-mod p2p;
 mod utils;
+mod p2p;
 mod view;
 
 use std::{cell::RefCell, rc::Rc};
@@ -58,14 +57,14 @@ const CHAT_HTML: &str = r#"
     </style>
 "#;
 pub fn render_chat(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>) {
-    dom::document().body().unwrap().set_inner_html(CHAT_HTML);
+    utils::document().body().unwrap().set_inner_html(CHAT_HTML);
 
-    let get_message = || dom::document().get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
-    let clear_message = || dom::document().get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().set_value("");
+    let get_message = || utils::document().get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
+    let clear_message = || utils::document().get_element_by_id("message").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().set_value("");
 
-    let text_area = dom::document().get_element_by_id("message").unwrap();
+    let text_area = utils::document().get_element_by_id("message").unwrap();
     let con_clone = peer_connection.clone();
-    dom::onkeypress(&text_area, move |event: KeyboardEvent| {
+    utils::onkeypress(&text_area, move |event: KeyboardEvent| {
         if event.key() == "Enter" {
             if let Some(con) = &*con_clone.borrow() {
                 let msg = get_message();
@@ -78,8 +77,8 @@ pub fn render_chat(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>) {
         }
     });
 
-    let btn = dom::document().get_element_by_id("send").unwrap();
-    dom::onclick(&btn, move || {
+    let btn = utils::document().get_element_by_id("send").unwrap();
+    utils::onclick(&btn, move || {
         if let Some(con) = &*peer_connection.borrow() {
             let msg = get_message();
             let success = con.send_message(&msg);
@@ -92,8 +91,8 @@ pub fn render_chat(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>) {
 }
 
 pub fn append_log(message: &str) {
-    let elem = dom::document().get_element_by_id("logbox").unwrap();
-    let div = dom::document().create_element("div").unwrap();
+    let elem = utils::document().get_element_by_id("logbox").unwrap();
+    let div = utils::document().create_element("div").unwrap();
     div.set_text_content(Some(message));
     elem.append_child(&div).unwrap();
     let elem = elem.dyn_into::<HtmlElement>().unwrap();

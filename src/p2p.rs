@@ -214,7 +214,6 @@ mod tests {
 
     wasm_bindgen_test_configure!(run_in_browser);
 
-    #[allow(dead_code)]
     fn create_mock_callbacks() -> PeerConnectionCallbacks {
         PeerConnectionCallbacks {
             on_sdp_ready: Box::new(|_| {}),
@@ -224,7 +223,6 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
     fn create_test_callbacks_with_state() -> (PeerConnectionCallbacks, Rc<RefCell<Vec<String>>>) {
         let state = Rc::new(RefCell::new(Vec::new()));
         let state_clone = state.clone();

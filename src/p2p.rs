@@ -54,35 +54,27 @@ impl PeerConnection {
         self.dc
             .borrow()
             .as_ref()
-            .filter(|dc| dc.ready_state() == RtcDataChannelState::Open && !message.trim().is_empty())
-            .map(|dc| {
-                dc.send_with_str(message).ok();
-                console_log!("message sent: {}", message);
-                true
-            })
+            .filter(|dc: &&RtcDataChannel| dc.ready_state() == RtcDataChannelState::Open && !message.trim().is_empty())
+            .map(|dc| dc.send_with_str(message).ok().pipe(|_| console_log!("message sent: {}", message)).pipe(|_| true))
             .unwrap_or(false)
     }
 
     pub async fn create_offer(&self) -> Result<(), JsValue> {
-        let offer = JsFuture::from(self.pc.create_offer()).await?;
-        JsFuture::from(self.pc.set_local_description(&offer.into())).await?;
-        Ok(())
+        JsFuture::from(self.pc.create_offer()).await?.pipe(|offer| JsFuture::from(self.pc.set_local_description(&offer.into()))).await.map(|_| ())
     }
 
     pub async fn set_remote_description(&self, sdp: &str) -> Result<(), JsValue> {
-        let sdp = js_sys::JSON::parse(sdp)?;
-        JsFuture::from(self.pc.set_remote_description(&sdp.into())).await?;
-        Ok(())
+        js_sys::JSON::parse(sdp)?.pipe(|sdp| JsFuture::from(self.pc.set_remote_description(&sdp.into()))).await.map(|_| ())
     }
 }
 
 pub fn create_host_peer_connection(callbacks: PeerConnectionCallbacks) -> PeerConnection {
     create_rtc_peer_connection().pipe(|pc| (pc.create_data_channel("app"), pc)).pipe(|(dc, pc)| {
-        let dc_ref = Rc::new(RefCell::new(Some(dc.clone())));
-        setup_ice_callback(&pc, callbacks.on_sdp_ready);
-        setup_connection_state_callback(&pc, callbacks.on_connection_status_change);
-        setup_data_channel_callbacks(&dc, callbacks.on_connection_established, callbacks.on_message_received);
-        PeerConnection { pc, dc: dc_ref }
+        Rc::new(RefCell::new(Some(dc.clone())))
+            .tap(|_| setup_ice_callback(&pc, callbacks.on_sdp_ready))
+            .tap(|_| setup_connection_state_callback(&pc, callbacks.on_connection_status_change))
+            .tap(|_| setup_data_channel_callbacks(&dc, callbacks.on_connection_established, callbacks.on_message_received))
+            .pipe(|dc_ref| PeerConnection { pc, dc: dc_ref })
     })
 }
 
@@ -92,7 +84,7 @@ pub async fn create_guest_peer_connection(offer: &str, callbacks: PeerConnection
     create_rtc_peer_connection()
         .tap(|pc| setup_ice_callback(pc, callbacks.on_sdp_ready))
         .tap(|pc| setup_connection_state_callback(pc, callbacks.on_connection_status_change))
-        .tap(|pc| setup_guest_data_channel_with_callbacks(pc, dc_ref.clone(), callbacks.on_connection_established, callbacks.on_message_received).unwrap())
+        .tap(|pc| setup_guest_data_channel_callbacks(pc, dc_ref.clone(), callbacks.on_connection_established, callbacks.on_message_received).unwrap())
         .pipe(|pc| async move {
             js_sys::JSON::parse(offer)?.pipe(|sdp| JsFuture::from(pc.set_remote_description(&sdp.into()))).await?;
 
@@ -104,17 +96,27 @@ pub async fn create_guest_peer_connection(offer: &str, callbacks: PeerConnection
 }
 
 fn create_rtc_peer_connection() -> RtcPeerConnection {
-    RtcIceServer::new().tap(|s| s.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302")))).pipe(|ice_server| RtcConfiguration::new().tap(|c| c.set_ice_servers(&js_sys::Array::of1(&ice_server)))).pipe(|config| RtcPeerConnection::new_with_configuration(&config).unwrap())
+    RtcIceServer::new()
+        .tap(|s| s.set_urls(&js_sys::Array::of1(&JsValue::from_str("stun:stun.l.google.com:19302"))))
+        .pipe(|ice_server| RtcConfiguration::new().tap(|c| c.set_ice_servers(&js_sys::Array::of1(&ice_server))))
+        .pipe(|config| RtcPeerConnection::new_with_configuration(&config).unwrap())
 }
 
 fn setup_ice_callback(pc: &RtcPeerConnection, mut callback: Box<dyn FnMut(String)>) {
     Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
         event.candidate().is_none().then(|| {
-            event.current_target().and_then(|t| t.dyn_into::<RtcPeerConnection>().ok()).and_then(|pc| pc.local_description()).and_then(|desc| js_sys::JSON::stringify(&desc).ok()).and_then(|s| s.as_string()).tap(|sdp| console_log!("generated sdp: {:?}", sdp)).tap(|sdp| {
-                if let Some(sdp_str) = sdp {
-                    callback(sdp_str.clone());
-                }
-            })
+            event
+                .current_target()
+                .and_then(|t| t.dyn_into::<RtcPeerConnection>().ok())
+                .and_then(|pc| pc.local_description())
+                .and_then(|desc| js_sys::JSON::stringify(&desc).ok())
+                .and_then(|s| s.as_string())
+                .tap(|sdp| console_log!("generated sdp: {:?}", sdp))
+                .tap(|sdp| {
+                    if let Some(sdp_str) = sdp {
+                        callback(sdp_str.clone());
+                    }
+                })
         });
     }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>)
     .tap(|closure| pc.set_onicecandidate(Some(closure.as_ref().unchecked_ref())))
@@ -164,7 +166,7 @@ fn setup_data_channel_callbacks(dc: &RtcDataChannel, mut on_open: Box<dyn FnMut(
     .forget();
 }
 
-fn setup_guest_data_channel_with_callbacks(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Option<RtcDataChannel>>>, on_open: Box<dyn FnMut()>, on_message: Box<dyn FnMut(String)>) -> Result<(), JsValue> {
+fn setup_guest_data_channel_callbacks(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Option<RtcDataChannel>>>, on_open: Box<dyn FnMut()>, on_message: Box<dyn FnMut(String)>) -> Result<(), JsValue> {
     let callbacks = (Rc::new(RefCell::new(Some(on_open))), Rc::new(RefCell::new(Some(on_message))));
 
     Closure::wrap({

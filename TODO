@@ -1,0 +1,11 @@
+- clean up memory management
+    - get rid of unnecessary clones
+    - put all variables inside the inner most closure
+
+- implement game
+    - implement local mode for testing → ie. press "x" to toggle local mode, then use arrow keys and wasd to control the two players
+
+ignore for now:
+
+- use yew for html: https://yew.rs/docs/concepts/html
+    - doesn't have any real advantages over using plain html except highlighting

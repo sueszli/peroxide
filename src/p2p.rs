@@ -160,26 +160,6 @@ fn setup_connection_state_callback(pc: &RtcPeerConnection, mut callback: StatusC
     closure.forget();
 }
 
-fn setup_data_channel_callbacks(dc: &RtcDataChannel, mut on_open: SimpleCallback, mut on_message: StringCallback) {
-    let open_closure = Closure::wrap(Box::new(move || {
-        console_log!("data channel opened");
-        on_open();
-    }) as Box<dyn FnMut()>);
-
-    let message_closure = Closure::wrap(Box::new(move |event: MessageEvent| {
-        if let Some(data) = event.data().as_string() {
-            console_log!("message received: {}", data);
-            on_message(data);
-        }
-    }) as Box<dyn FnMut(MessageEvent)>);
-
-    dc.set_onopen(Some(open_closure.as_ref().unchecked_ref()));
-    dc.set_onmessage(Some(message_closure.as_ref().unchecked_ref()));
-
-    open_closure.forget();
-    message_closure.forget();
-}
-
 fn setup_guest_data_channel(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Option<RtcDataChannel>>>, on_open: SimpleCallback, on_message: StringCallback) -> Result<(), JsValue> {
     let on_open = Rc::new(RefCell::new(Some(on_open)));
     let on_message = Rc::new(RefCell::new(Some(on_message)));
@@ -204,4 +184,24 @@ fn setup_guest_data_channel(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Optio
     pc.set_ondatachannel(Some(closure.as_ref().unchecked_ref()));
     closure.forget();
     Ok(())
+}
+
+fn setup_data_channel_callbacks(dc: &RtcDataChannel, mut on_open: SimpleCallback, mut on_message: StringCallback) {
+    let open_closure = Closure::wrap(Box::new(move || {
+        console_log!("data channel opened");
+        on_open();
+    }) as Box<dyn FnMut()>);
+
+    let message_closure = Closure::wrap(Box::new(move |event: MessageEvent| {
+        if let Some(data) = event.data().as_string() {
+            console_log!("message received: {}", data);
+            on_message(data);
+        }
+    }) as Box<dyn FnMut(MessageEvent)>);
+
+    dc.set_onopen(Some(open_closure.as_ref().unchecked_ref()));
+    dc.set_onmessage(Some(message_closure.as_ref().unchecked_ref()));
+
+    open_closure.forget();
+    message_closure.forget();
 }

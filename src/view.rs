@@ -174,7 +174,7 @@ pub fn render_role_selection(on_host_selection: impl Fn() + 'static, on_guest_se
 }
 
 #[derive(Clone, Copy)]
-pub struct P2PCallbacks {
+pub struct ActorCallbacks {
     pub on_connection_established: fn(Rc<RefCell<Option<p2p::PeerConnection>>>),
     pub on_message: fn(String),
 }
@@ -215,7 +215,7 @@ const HOST_HTML: &str = r#"
         }
     </style>
 "#;
-pub fn render_host(callbacks: P2PCallbacks) {
+pub fn render_host(callbacks: ActorCallbacks) {
     utils::document().body().unwrap().set_inner_html(HOST_HTML);
 
     let peer_connection = Rc::new(RefCell::new(None));
@@ -298,7 +298,7 @@ const GUEST_HTML: &str = r#"
         }
     </style>
 "#;
-pub fn render_guest(callbacks: P2PCallbacks) {
+pub fn render_guest(callbacks: ActorCallbacks) {
     utils::document().body().unwrap().set_inner_html(GUEST_HTML);
 
     // stage 2: create answer

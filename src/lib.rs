@@ -105,7 +105,7 @@ pub fn run() -> Result<(), JsValue> {
 
     view::init();
 
-    let callbacks = view::P2PCallbacks {
+    let callbacks = view::ActorCallbacks {
         on_connection_established: |peer_connection| render_chat(peer_connection),
         on_message: |msg| {
             append_log(&format!("Peer: {}", msg));

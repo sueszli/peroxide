@@ -37,15 +37,11 @@ use wasm_bindgen::{JsCast, JsValue, prelude::*};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Event, MessageEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelEvent, RtcDataChannelState, RtcIceServer, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcPeerConnectionState};
 
-type StringCallback = Box<dyn FnMut(String)>;
-type StatusCallback = Box<dyn FnMut(&'static str)>;
-type SimpleCallback = Box<dyn FnMut()>;
-
 pub struct PeerConnectionCallbacks {
-    pub on_sdp_ready: StringCallback,
-    pub on_connection_status_change: StatusCallback,
-    pub on_connection_established: SimpleCallback,
-    pub on_message_received: StringCallback,
+    pub on_sdp_ready: Box<dyn FnMut(String)>,
+    pub on_connection_status_change: Box<dyn FnMut(&'static str)>,
+    pub on_connection_established: Box<dyn FnMut()>,
+    pub on_message_received: Box<dyn FnMut(String)>,
 }
 
 #[derive(Debug)]
@@ -116,7 +112,7 @@ fn setup_callbacks(pc: &RtcPeerConnection, dc: Option<&RtcDataChannel>, callback
     dc.map(|dc| setup_data_channel_callbacks(dc, callbacks.on_connection_established, callbacks.on_message_received));
 }
 
-fn setup_ice_callback(pc: &RtcPeerConnection, mut callback: StringCallback) {
+fn setup_ice_callback(pc: &RtcPeerConnection, mut callback: Box<dyn FnMut(String)>) {
     Closure::wrap(Box::new(move |event: RtcPeerConnectionIceEvent| {
         event.candidate().is_none().then(|| {
             event.current_target().and_then(|t| t.dyn_into::<RtcPeerConnection>().ok()).and_then(|pc| pc.local_description()).and_then(|desc| js_sys::JSON::stringify(&desc).ok()).and_then(|s| s.as_string()).map(|sdp| {
@@ -129,7 +125,7 @@ fn setup_ice_callback(pc: &RtcPeerConnection, mut callback: StringCallback) {
     .forget();
 }
 
-fn setup_connection_state_callback(pc: &RtcPeerConnection, mut callback: StatusCallback) {
+fn setup_connection_state_callback(pc: &RtcPeerConnection, mut callback: Box<dyn FnMut(&'static str)>) {
     Closure::wrap(Box::new(move |event: Event| {
         event
             .current_target()
@@ -152,7 +148,7 @@ fn setup_connection_state_callback(pc: &RtcPeerConnection, mut callback: StatusC
     .forget();
 }
 
-fn setup_guest_data_channel(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Option<RtcDataChannel>>>, on_open: SimpleCallback, on_message: StringCallback) -> Result<(), JsValue> {
+fn setup_guest_data_channel(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Option<RtcDataChannel>>>, on_open: Box<dyn FnMut()>, on_message: Box<dyn FnMut(String)>) -> Result<(), JsValue> {
     let callbacks = (Rc::new(RefCell::new(Some(on_open))), Rc::new(RefCell::new(Some(on_message))));
 
     Closure::wrap({
@@ -177,7 +173,7 @@ fn setup_guest_data_channel(pc: &RtcPeerConnection, dc_storage: Rc<RefCell<Optio
     Ok(())
 }
 
-fn setup_data_channel_callbacks(dc: &RtcDataChannel, mut on_open: SimpleCallback, mut on_message: StringCallback) {
+fn setup_data_channel_callbacks(dc: &RtcDataChannel, mut on_open: Box<dyn FnMut()>, mut on_message: Box<dyn FnMut(String)>) {
     Closure::wrap(Box::new(move || {
         console_log!("data channel opened");
         on_open();

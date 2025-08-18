@@ -4,9 +4,3 @@
 
 - implement game
     - implement local mode for testing → ie. press "x" to toggle local mode, then use arrow keys and wasd to control the two players
-
----
-
-- use yew for html
-    - https://yew.rs/docs/concepts/html
-    - might not have any real advantages over using plain html except highlighting

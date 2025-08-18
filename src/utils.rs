@@ -4,15 +4,6 @@ use std::io::{Read, Write};
 use wasm_bindgen::{JsCast, prelude::*};
 use web_sys::*;
 
-#[macro_export]
-macro_rules! console_log {
-    ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
-}
-
-#[macro_export]
-macro_rules! console_error {
-    ($($t:tt)*) => (web_sys::console::error_1(&format_args!($($t)*).to_string().into()))
-}
 
 thread_local! {
     static DOC: Document = web_sys::window().unwrap().document().unwrap();

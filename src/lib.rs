@@ -1,6 +1,5 @@
-#[macro_use]
-mod utils;
 mod p2p;
+mod utils;
 mod view;
 
 use std::{cell::RefCell, rc::Rc};

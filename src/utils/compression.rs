@@ -1,74 +1,8 @@
 use base64::prelude::*;
 use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use std::io::{Read, Write};
-use wasm_bindgen::{JsCast, prelude::*};
-use web_sys::*;
 
-//
-// combinatorial logic
-//
-
-pub trait Thrush {
-    // Function application in reverse order.
-    // `T x f = f x` (apply function f to value x)
-    fn pipe<U, F>(self, f: F) -> U
-    where
-        F: FnOnce(Self) -> U,
-        Self: Sized;
-}
-impl<T> Thrush for T {
-    fn pipe<U, F>(self, f: F) -> U
-    where
-        F: FnOnce(Self) -> U,
-        Self: Sized,
-    {
-        f(self)
-    }
-}
-
-pub trait Kestrel {
-    // Performs side effects while preserving the original value.
-    // `K x y = x` (Kestrel ignores the second argument)
-    fn tap<F>(self, f: F) -> Self
-    where
-        F: FnOnce(&Self);
-}
-impl<T> Kestrel for T {
-    fn tap<F>(self, f: F) -> Self
-    where
-        F: FnOnce(&Self),
-    {
-        f(&self);
-        self
-    }
-}
-
-//
-// dom manipulation
-//
-
-thread_local! {
-    static DOC: Document = web_sys::window().unwrap().document().unwrap();
-}
-pub fn document() -> Document {
-    DOC.with(|d| d.clone())
-}
-
-pub fn onkeypress<F: 'static + FnMut(KeyboardEvent)>(element: &Element, function: F) {
-    let callback = Closure::wrap(Box::new(function) as Box<dyn FnMut(KeyboardEvent)>);
-    element.add_event_listener_with_callback("keypress", callback.as_ref().unchecked_ref()).unwrap();
-    callback.forget();
-}
-
-pub fn onclick<F: 'static + FnMut()>(element: &Element, function: F) {
-    let callback = Closure::wrap(Box::new(function) as Box<dyn FnMut()>);
-    element.add_event_listener_with_callback("click", callback.as_ref().unchecked_ref()).unwrap();
-    callback.forget();
-}
-
-//
-// compression
-//
+use super::combinatorics::Thrush;
 
 const SDP_TEMPLATE: &str = r#"{"type":"{}","sdp":"v=0\r\no=- {} 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0\r\na=extmap-allow-mixed\r\na=msid-semantic: WMS\r\nm=application {} UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 {}\r\na=candidate:{} 1 udp {} {}.local {} typ host generation 0 network-cost 999\r\na=candidate:{} 1 udp {} {} {} typ srflx raddr 0.0.0.0 rport 0 generation 0 network-cost 999\r\na=ice-ufrag:{}\r\na=ice-pwd:{}\r\na=ice-options:trickle\r\na=fingerprint:sha-256 {}\r\na=setup:{}\r\na=mid:0\r\na=sctp-port:5000\r\na=max-message-size:262144\r\n"}"#;
 
@@ -99,9 +33,8 @@ pub fn decompress(compressed_str: &str) -> Result<String, String> {
         result = result.replacen("{}", part, 1);
     }
 
-    // If second candidate is empty, remove the entire second candidate line
+    // drop the entire second candidate line
     if parts[8].is_empty() {
-        // Look for the pattern that gets created with empty values
         let empty_candidate_pattern = "\\r\\na=candidate: 1 udp    typ srflx raddr 0.0.0.0 rport 0 generation 0 network-cost 999";
         if let Some(start) = result.find(empty_candidate_pattern) {
             if let Some(end_pos) = result[start..].find("\\r\\na=ice-ufrag") {
@@ -195,10 +128,6 @@ fn extract_candidates(sdp: &str) -> Result<Vec<Vec<String>>, String> {
         .collect::<Result<Vec<_>, String>>()?
         .pipe(|candidates| if candidates.is_empty() { Err("No candidates found".to_string()) } else { Ok(candidates) })
 }
-
-//
-// tests
-//
 
 #[cfg(test)]
 mod tests {
@@ -353,11 +282,9 @@ mod tests {
         let offer_compressed = compress(OFFER_SDP).unwrap();
         let answer_compressed = compress(ANSWER_SDP).unwrap();
 
-        // Compression should significantly reduce size
         assert!(offer_compressed.len() < OFFER_SDP.len() / 2);
         assert!(answer_compressed.len() < ANSWER_SDP.len() / 2);
 
-        // Verify compression produces valid base64
         assert!(BASE64_STANDARD.decode(&offer_compressed).is_ok());
         assert!(BASE64_STANDARD.decode(&answer_compressed).is_ok());
     }

@@ -216,13 +216,8 @@ pub fn render_host(callbacks: ActorCallbacks) {
 
     let update_my_sdp = |json: String| {
         let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-        match utils::compress(&json) {
-            Ok(sdp_str) => elem.set_inner_html(&sdp_str),
-            Err(e) => {
-                update_notification(&format!("Compression error: {}", e));
-                return;
-            }
-        }
+        let sdp_str = utils::compress(&json).unwrap();
+        elem.set_inner_html(&sdp_str);
     };
     let on_established = {
         let pc_ref = peer_connection.clone();
@@ -249,13 +244,7 @@ pub fn render_host(callbacks: ActorCallbacks) {
         let pc_ref = peer_connection.clone();
         move || {
             let content = utils::document().get_element_by_id("peer_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
-            let sdp_str = match utils::decompress(&content) {
-                Ok(sdp) => sdp,
-                Err(e) => {
-                    update_notification(&format!("Decompression error: {}", e));
-                    return;
-                }
-            };
+            let sdp_str = utils::decompress(&content).unwrap();
             let pc_ref = pc_ref.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 if let Some(con) = pc_ref.borrow().as_ref() {
@@ -313,26 +302,15 @@ pub fn render_guest(callbacks: ActorCallbacks) {
 
     let update_my_sdp = |json: String| {
         let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-        match utils::compress(&json) {
-            Ok(sdp_str) => elem.set_inner_html(&sdp_str),
-            Err(e) => {
-                update_notification(&format!("Compression error: {}", e));
-                return;
-            }
-        }
+        let sdp_str = utils::compress(&json).unwrap();
+        elem.set_inner_html(&sdp_str);
     };
 
     let connect_handler = {
         let pc_ref = peer_connection.clone();
         move || {
             let content = utils::document().get_element_by_id("peer_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
-            let sdp_str = match utils::decompress(&content) {
-                Ok(sdp) => sdp,
-                Err(e) => {
-                    update_notification(&format!("Decompression error: {}", e));
-                    return;
-                }
-            };
+            let sdp_str = utils::decompress(&content).unwrap();
             let pc_ref = pc_ref.clone();
 
             wasm_bindgen_futures::spawn_local(async move {

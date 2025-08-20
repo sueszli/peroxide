@@ -1,11 +1,4 @@
-- maybe use a more efficient binary format for encryption
-- drop showing user messages on compression stuff
-
 - improve onboarding ui, make it prettier
-
-- use a better abstraction for message channel between peers (send (function that you can call with a string), on_message (function that gets evoked when a message arrives))
-
-- show the frames per second at bottom part in a pixel font
 
 - implement game
     - implement local mode for testing → ie. press "x" to toggle local mode, then use arrow keys and wasd to control the two players

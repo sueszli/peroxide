@@ -282,15 +282,15 @@ function __wbg_adapter_27(arg0, arg1) {
 }
 
 function __wbg_adapter_38(arg0, arg1, arg2) {
-    wasm.closure147_externref_shim(arg0, arg1, arg2);
+    wasm.closure164_externref_shim(arg0, arg1, arg2);
 }
 
 function __wbg_adapter_186(arg0, arg1, arg2, arg3, arg4) {
-    wasm.closure165_externref_shim(arg0, arg1, arg2, arg3, arg4);
+    wasm.closure182_externref_shim(arg0, arg1, arg2, arg3, arg4);
 }
 
 function __wbg_adapter_203(arg0, arg1, arg2, arg3) {
-    wasm.closure169_externref_shim(arg0, arg1, arg2, arg3);
+    wasm.closure186_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 const __wbindgen_enum_RtcDataChannelState = ["connecting", "open", "closing", "closed"];
@@ -842,8 +842,8 @@ function __wbg_get_imports() {
         const ret = makeMutClosure(arg0, arg1, 79, __wbg_adapter_24);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper387 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 148, __wbg_adapter_38);
+    imports.wbg.__wbindgen_closure_wrapper851 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 165, __wbg_adapter_38);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {

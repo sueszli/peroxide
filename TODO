@@ -1,4 +1,7 @@
-- make compression better by parsing the json, then using a more efficient binary format
+- maybe use a more efficient binary format for encryption
+- drop showing user messages on compression stuff
+
+- improve onboarding ui, make it prettier
 
 - use a better abstraction for message channel between peers (send (function that you can call with a string), on_message (function that gets evoked when a message arrives))
 

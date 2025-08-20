@@ -20,7 +20,8 @@ const GLOBAL_STYLING: &str = r#"
     }
 "#;
 pub fn init() {
-    // placed in head
+    console_error_panic_hook::set_once(); // map panics to console.error
+
     let doc = utils::document();
     let head = doc.head().unwrap();
     let style = doc.create_element("style").unwrap();
@@ -35,13 +36,10 @@ pub fn init() {
 // notifications
 //
 
-/// Shows connection status notifications.
-/// This element is placed outside of the `body`, so it can't be accidentally removed.
-/// Uses inline styling so it doesn't affect other elements.
+/// Not influenced by view changes.
 pub fn update_connection_notification(status: &str) {
     let doc = utils::document();
 
-    // create if missing
     let status_element = match doc.get_element_by_id("notification_pill_left") {
         Some(element) => element,
         None => {
@@ -75,18 +73,13 @@ pub fn update_connection_notification(status: &str) {
             div
         }
     };
-
-    // update content
     status_element.set_text_content(Some(status));
 }
 
-/// Shows general user notifications.
-/// This element is placed outside of the `body`, so it can't be accidentally removed.
-/// Uses inline styling so it doesn't affect other elements.
+/// Not influenced by view changes.
 pub fn update_notification(message: &str) {
     let doc = utils::document();
 
-    // create if missing
     let div = if let Some(existing) = doc.get_element_by_id("notification_pill_right") {
         existing
     } else {
@@ -120,8 +113,6 @@ pub fn update_notification(message: &str) {
         document_element.append_child(&div).unwrap();
         div
     };
-
-    // update content
     div.set_text_content(Some(message));
 }
 
@@ -225,8 +216,13 @@ pub fn render_host(callbacks: ActorCallbacks) {
 
     let update_my_sdp = |json: String| {
         let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-        let sdp_str = utils::compress_string(&json);
-        elem.set_inner_html(&sdp_str);
+        match utils::compress(&json) {
+            Ok(sdp_str) => elem.set_inner_html(&sdp_str),
+            Err(e) => {
+                update_notification(&format!("Compression error: {}", e));
+                return;
+            }
+        }
     };
     let on_established = {
         let pc_ref = peer_connection.clone();
@@ -253,7 +249,13 @@ pub fn render_host(callbacks: ActorCallbacks) {
         let pc_ref = peer_connection.clone();
         move || {
             let content = utils::document().get_element_by_id("peer_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
-            let sdp_str = utils::decompress_string(&content);
+            let sdp_str = match utils::decompress(&content) {
+                Ok(sdp) => sdp,
+                Err(e) => {
+                    update_notification(&format!("Decompression error: {}", e));
+                    return;
+                }
+            };
             let pc_ref = pc_ref.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 if let Some(con) = pc_ref.borrow().as_ref() {
@@ -311,15 +313,26 @@ pub fn render_guest(callbacks: ActorCallbacks) {
 
     let update_my_sdp = |json: String| {
         let elem = utils::document().get_element_by_id("my_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap();
-        let sdp_str = utils::compress_string(&json);
-        elem.set_inner_html(&sdp_str);
+        match utils::compress(&json) {
+            Ok(sdp_str) => elem.set_inner_html(&sdp_str),
+            Err(e) => {
+                update_notification(&format!("Compression error: {}", e));
+                return;
+            }
+        }
     };
 
     let connect_handler = {
         let pc_ref = peer_connection.clone();
         move || {
             let content = utils::document().get_element_by_id("peer_sdp").unwrap().dyn_into::<HtmlTextAreaElement>().unwrap().value();
-            let sdp_str = utils::decompress_string(&content);
+            let sdp_str = match utils::decompress(&content) {
+                Ok(sdp) => sdp,
+                Err(e) => {
+                    update_notification(&format!("Decompression error: {}", e));
+                    return;
+                }
+            };
             let pc_ref = pc_ref.clone();
 
             wasm_bindgen_futures::spawn_local(async move {

@@ -33,7 +33,7 @@ pub fn init() {
 // notifications
 //
 
-/// Not influenced by view changes.
+/// Not influenced by view changes
 pub fn update_connection_notification(status: &str) {
     let status_element = match dom::get_element_by_id::<Element>("notification_pill_left") {
         Some(element) => element,
@@ -70,7 +70,7 @@ pub fn update_connection_notification(status: &str) {
     status_element.set_text_content(Some(status));
 }
 
-/// Not influenced by view changes.
+/// Not influenced by view changes
 pub fn update_notification(message: &str) {
     let div = if let Some(existing) = dom::get_element_by_id::<Element>("notification_pill_right") {
         existing

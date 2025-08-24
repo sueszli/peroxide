@@ -1,3 +1,4 @@
+mod audio;
 mod dom;
 mod p2p;
 mod utils;
@@ -10,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
 use web_sys::*;
+
+use utils::combinatorics::{Kestrel, Thrush};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Particle {
@@ -116,19 +119,6 @@ impl GameState {
     }
 }
 
-fn play_beep(frequency: f32, duration: f64) {
-    if let Ok(audio_context) = AudioContext::new() {
-        if let (Ok(oscillator), Ok(gain)) = (audio_context.create_oscillator(), audio_context.create_gain()) {
-            let _ = oscillator.set_type(web_sys::OscillatorType::Square);
-            let _ = oscillator.frequency().set_value(frequency);
-            let _ = gain.connect_with_audio_node(&audio_context.destination());
-            let _ = oscillator.connect_with_audio_node(&gain);
-            let _ = oscillator.start();
-            let _ = oscillator.stop_with_when(audio_context.current_time() + duration);
-        }
-    }
-}
-
 const PONG_HTML: &str = r#"
     <div id="game-container">
         <h2>Pong</h2>
@@ -208,20 +198,23 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
     let document = dom::document();
     let key_state = Rc::new(RefCell::new(std::collections::HashSet::new()));
 
-    let key_state_clone_down = key_state.clone();
-    let keydown_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
-        key_state_clone_down.borrow_mut().insert(event.key());
-    }) as Box<dyn FnMut(_)>);
+    document.body().unwrap().pipe(|body| {
+        let key_state_down = key_state.clone();
+        let keydown_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+            key_state_down.borrow_mut().insert(event.key());
+        }) as Box<dyn FnMut(_)>);
 
-    document.add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref()).unwrap();
-    keydown_closure.forget();
+        body.add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref()).unwrap();
+        keydown_closure.forget();
 
-    let key_state_clone_up = key_state.clone();
-    let keyup_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
-        key_state_clone_up.borrow_mut().remove(&event.key());
-    }) as Box<dyn FnMut(_)>);
-    document.add_event_listener_with_callback("keyup", keyup_closure.as_ref().unchecked_ref()).unwrap();
-    keyup_closure.forget();
+        let key_state_up = key_state.clone();
+        let keyup_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+            key_state_up.borrow_mut().remove(&event.key());
+        }) as Box<dyn FnMut(_)>);
+
+        body.add_event_listener_with_callback("keyup", keyup_closure.as_ref().unchecked_ref()).unwrap();
+        keyup_closure.forget();
+    });
 
     let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -246,11 +239,11 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
             // Wall collision
             if state.ball_y <= 10.0 || state.ball_y >= 590.0 {
                 state.ball_vy = -state.ball_vy;
-                let ball_x = state.ball_x;
-                let ball_y = state.ball_y;
-                state.add_particles(ball_x, ball_y, 8);
-                state.trigger_shake(5.0);
-                play_beep(400.0, 0.1);
+                (state.ball_x, state.ball_y).pipe(|(x, y)| {
+                    state.add_particles(x, y, 8);
+                    state.trigger_shake(5.0);
+                    audio::play_beep(400.0, 0.1);
+                });
             }
 
             // Paddle collision
@@ -264,11 +257,11 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
 
             if paddle_collision {
                 state.ball_vx = -state.ball_vx * 1.05; // Slight speed increase
-                let ball_x = state.ball_x;
-                let ball_y = state.ball_y;
-                state.add_particles(ball_x, ball_y, 12);
-                state.trigger_shake(8.0);
-                play_beep(600.0, 0.15);
+                (state.ball_x, state.ball_y).pipe(|(x, y)| {
+                    state.add_particles(x, y, 12);
+                    state.trigger_shake(8.0);
+                    audio::play_beep(600.0, 0.15);
+                });
             }
 
             // Score
@@ -278,7 +271,7 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
                 state.ball_y = 300.0;
                 state.ball_vx = 5.0;
                 state.ball_vy = (js_sys::Math::random() - 0.5) * 4.0;
-                play_beep(200.0, 0.3);
+                audio::play_beep(200.0, 0.3);
             }
             if state.ball_x > 800.0 {
                 state.score_1 += 1;
@@ -286,7 +279,7 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
                 state.ball_y = 300.0;
                 state.ball_vx = -5.0;
                 state.ball_vy = (js_sys::Math::random() - 0.5) * 4.0;
-                play_beep(200.0, 0.3);
+                audio::play_beep(200.0, 0.3);
             }
 
             if let Some(con) = &*peer_connection.borrow() {
@@ -345,10 +338,12 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
         }
 
         // Update score display
-        let score1_elem = dom::document().get_element_by_id("player1-score").unwrap();
-        score1_elem.set_text_content(Some(&state.score_1.to_string()));
-        let score2_elem = dom::document().get_element_by_id("player2-score").unwrap();
-        score2_elem.set_text_content(Some(&state.score_2.to_string()));
+        state.score_1.to_string().pipe(|score_text| {
+            dom::document().get_element_by_id("player1-score").unwrap().tap(|elem| elem.set_text_content(Some(&score_text)));
+        });
+        state.score_2.to_string().pipe(|score_text| {
+            dom::document().get_element_by_id("player2-score").unwrap().tap(|elem| elem.set_text_content(Some(&score_text)));
+        });
 
         let window = web_sys::window().unwrap();
         window.request_animation_frame(f.borrow().as_ref().unwrap().as_ref().unchecked_ref()).unwrap();

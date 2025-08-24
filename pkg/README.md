@@ -13,4 +13,6 @@ per·​ox·​ide (noun):
 - a chemical compound with two oxygen atoms linked by a covalent bond
 - a fusion of peer (P2P via WebRTC) and oxide (WebAssembly compiled from Rust)
 
+currently implements pong as a proof-of-concept.
+
 live demo: https://sueszli.github.io/peroxide/

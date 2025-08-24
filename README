@@ -13,7 +13,6 @@ per·​ox·​ide (noun):
 - a chemical compound with two oxygen atoms linked by a covalent bond
 - a fusion of peer (P2P via WebRTC) and oxide (WebAssembly compiled from Rust)
 
-currently implements pong as a proof-of-concept on top of the user connection setup and network protocol,
-but extending it to other games is as easy as forking and replacing a single `lib.rs` file.
+currently implements pong as a proof-of-concept.
 
 live demo: https://sueszli.github.io/peroxide/

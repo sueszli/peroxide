@@ -21,9 +21,9 @@ pub fn init() {
     console_error_panic_hook::set_once(); // map panics to console.error
 
     let head = dom::document().head().unwrap();
-    let style = dom::create_element("style");
-    dom::set_text_content(&style, GLOBAL_STYLING);
-    dom::append_child(&head, &style);
+    let style = dom::document().create_element("style").unwrap();
+    style.set_text_content(Some(GLOBAL_STYLING));
+    let _ = head.append_child(&style);
 
     update_connection_notification("🔴 Disconnected");
     update_notification("");
@@ -38,10 +38,9 @@ pub fn update_connection_notification(status: &str) {
     let status_element = match dom::get_element_by_id::<Element>("notification_pill_left") {
         Some(element) => element,
         None => {
-            let div = dom::create_element("div");
-            dom::set_id(&div, "notification_pill_left");
-            dom::set_attribute(
-                &div,
+            let div = dom::document().create_element("div").unwrap();
+            div.set_id("notification_pill_left");
+            let _ = div.set_attribute(
                 "style",
                 "position: fixed; \
                  top: 20px; \
@@ -64,11 +63,11 @@ pub fn update_connection_notification(status: &str) {
                  font-family: 'Lucida Console', monospace;",
             );
             let document_element = dom::document().document_element().unwrap();
-            dom::append_child(&document_element, &div);
+            let _ = document_element.append_child(&div);
             div
         }
     };
-    dom::set_text_content(&status_element, status);
+    status_element.set_text_content(Some(status));
 }
 
 /// Not influenced by view changes.
@@ -76,10 +75,9 @@ pub fn update_notification(message: &str) {
     let div = if let Some(existing) = dom::get_element_by_id::<Element>("notification_pill_right") {
         existing
     } else {
-        let div = dom::create_element("div");
-        dom::set_id(&div, "notification_pill_right");
-        dom::set_attribute(
-            &div,
+        let div = dom::document().create_element("div").unwrap();
+        div.set_id("notification_pill_right");
+        let _ = div.set_attribute(
             "style",
             "position: fixed; \
              top: 20px; \
@@ -103,10 +101,10 @@ pub fn update_notification(message: &str) {
              font-family: 'Lucida Console', monospace;",
         );
         let document_element = dom::document().document_element().unwrap();
-        dom::append_child(&document_element, &div);
+        let _ = document_element.append_child(&div);
         div
     };
-    dom::set_text_content(&div, message);
+    div.set_text_content(Some(message));
 }
 
 //
@@ -150,7 +148,7 @@ const ROLE_SELECTION_HTML: &str = r#"
     </style>
 "#;
 pub fn render_role_selection(on_host_selection: impl Fn() + 'static, on_guest_selection: impl Fn() + 'static) {
-    dom::set_inner_html(&dom::document().body().unwrap(), ROLE_SELECTION_HTML);
+    dom::document().body().unwrap().set_inner_html(ROLE_SELECTION_HTML);
 
     let host_btn: Element = dom::get_element_by_id("host_selection").unwrap();
     dom::onclick(&host_btn, on_host_selection);
@@ -205,13 +203,15 @@ const HOST_HTML: &str = r#"
     </style>
 "#;
 pub fn render_host(callbacks: ActorCallbacks) {
-    dom::set_inner_html(&dom::document().body().unwrap(), HOST_HTML);
+    dom::document().body().unwrap().set_inner_html(HOST_HTML);
 
     let peer_connection = Rc::new(RefCell::new(None));
 
     let update_my_sdp = |json: String| {
         let sdp_str = utils::compress(&json).unwrap();
-        let _ = dom::set_textarea_inner_html("my_sdp", &sdp_str);
+        if let Some(textarea) = dom::get_element_by_id::<HtmlTextAreaElement>("my_sdp") {
+            textarea.set_inner_html(&sdp_str);
+        }
     };
     let on_established = {
         let pc_ref = peer_connection.clone();
@@ -238,7 +238,7 @@ pub fn render_host(callbacks: ActorCallbacks) {
     let connect_handler = {
         let pc_ref = peer_connection.clone();
         move || {
-            let content = dom::get_textarea_value("peer_sdp").unwrap_or_default();
+            let content = dom::get_element_by_id::<HtmlTextAreaElement>("peer_sdp").map(|t| t.value()).unwrap_or_default();
             let sdp_str = utils::decompress(&content).unwrap();
             let pc_ref = pc_ref.clone();
             wasm_bindgen_futures::spawn_local(async move {
@@ -298,13 +298,15 @@ const GUEST_HTML: &str = r#"
     </style>
 "#;
 pub fn render_guest(callbacks: ActorCallbacks) {
-    dom::set_inner_html(&dom::document().body().unwrap(), GUEST_HTML);
+    dom::document().body().unwrap().set_inner_html(GUEST_HTML);
 
     let peer_connection = Rc::new(RefCell::new(None));
 
     let update_my_sdp = |json: String| {
         let sdp_str = utils::compress(&json).unwrap();
-        let _ = dom::set_textarea_inner_html("my_sdp", &sdp_str);
+        if let Some(textarea) = dom::get_element_by_id::<HtmlTextAreaElement>("my_sdp") {
+            textarea.set_inner_html(&sdp_str);
+        }
     };
 
     let connect_handler = {
@@ -312,7 +314,7 @@ pub fn render_guest(callbacks: ActorCallbacks) {
         let on_connection_established = callbacks.on_connection_established.clone();
         let on_message = callbacks.on_message.clone();
         move || {
-            let content = dom::get_textarea_value("peer_sdp").unwrap_or_default();
+            let content = dom::get_element_by_id::<HtmlTextAreaElement>("peer_sdp").map(|t| t.value()).unwrap_or_default();
             let sdp_str = utils::decompress(&content).unwrap();
             let pc_ref = pc_ref.clone();
             let on_connection_established = on_connection_established.clone();

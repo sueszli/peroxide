@@ -173,7 +173,7 @@ const PONG_HTML: &str = r#"
 "#;
 
 pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is_host: bool, game_state: Rc<RefCell<GameState>>) {
-    dom::set_inner_html(&dom::document().body().unwrap(), PONG_HTML);
+    dom::document().body().unwrap().set_inner_html(PONG_HTML);
 
     let canvas: HtmlCanvasElement = dom::get_element_by_id("game").unwrap();
 
@@ -291,10 +291,10 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
         // Apply screen shake
         if state.shake_intensity > 0.0 {
             let game_elem: Element = dom::get_element_by_id("game-container").unwrap();
-            dom::set_attribute(&game_elem, "style", &format!("transform: translate({}px, {}px);", state.shake_x, state.shake_y));
+            let _ = game_elem.set_attribute("style", &format!("transform: translate({}px, {}px);", state.shake_x, state.shake_y));
         } else {
             let game_elem: Element = dom::get_element_by_id("game-container").unwrap();
-            dom::set_attribute(&game_elem, "style", "transform: translate(0px, 0px);");
+            let _ = game_elem.set_attribute("style", "transform: translate(0px, 0px);");
         }
 
         // Pixel-perfect drawing
@@ -323,11 +323,11 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
         // Update score display
         state.score_1.to_string().pipe(|score_text| {
             let elem: Element = dom::get_element_by_id("player1-score").unwrap();
-            dom::set_text_content(&elem, &score_text);
+            elem.set_text_content(Some(&score_text));
         });
         state.score_2.to_string().pipe(|score_text| {
             let elem: Element = dom::get_element_by_id("player2-score").unwrap();
-            dom::set_text_content(&elem, &score_text);
+            elem.set_text_content(Some(&score_text));
         });
 
         dom::window().request_animation_frame(f.borrow().as_ref().unwrap().as_ref().unchecked_ref()).unwrap();

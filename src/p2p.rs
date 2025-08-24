@@ -31,7 +31,6 @@
 //! - [WebRTC API Documentation](https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API)
 
 use crate::utils::{Kestrel, Thrush};
-use js_sys;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::{JsCast, JsValue, prelude::*};
@@ -73,6 +72,10 @@ impl PeerConnection {
         let sdp = js_sys::JSON::parse(sdp)?;
         JsFuture::from(self.pc.set_remote_description(&sdp.into())).await?;
         Ok(())
+    }
+
+    pub fn rtc_peer_connection(&self) -> &RtcPeerConnection {
+        &self.pc
     }
 }
 
@@ -203,7 +206,7 @@ fn setup_guest_data_channel_callbacks(pc: &RtcPeerConnection, dc_storage: Rc<Ref
 }
 
 #[cfg(test)]
-#[allow(dead_code)]
+#[allow(dead_code, unused_variables, unused_imports)]
 mod tests {
     use super::*;
     use std::cell::RefCell;
@@ -259,7 +262,7 @@ mod tests {
         *peer_connection.dc.borrow_mut() = None; // empty data channel means no connection
 
         let result = peer_connection.send_message("test message");
-        assert_eq!(result, false);
+        assert!(!result);
     }
 
     #[wasm_bindgen_test]
@@ -268,13 +271,13 @@ mod tests {
         let peer_connection = create_host_peer_connection(callbacks);
 
         let result = peer_connection.send_message("");
-        assert_eq!(result, false);
+        assert!(!result);
 
         let result = peer_connection.send_message("   ");
-        assert_eq!(result, false);
+        assert!(!result);
 
         let result = peer_connection.send_message("\t\n");
-        assert_eq!(result, false);
+        assert!(!result);
     }
 
     #[wasm_bindgen_test]
@@ -331,24 +334,6 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn test_send_message_edge_cases() {
-        let callbacks = create_mock_callbacks();
-        let peer_connection = create_host_peer_connection(callbacks);
-
-        let long_message = "a".repeat(10000);
-        let result = peer_connection.send_message(&long_message);
-        assert!(result == true || result == false);
-
-        let special_message = "Hello 🌍! @#$%^&*()";
-        let result = peer_connection.send_message(special_message);
-        assert!(result == true || result == false);
-
-        let multiline_message = "Line 1\nLine 2\rLine 3\r\n";
-        let result = peer_connection.send_message(multiline_message);
-        assert!(result == true || result == false);
-    }
-
-    #[wasm_bindgen_test]
     fn test_multiple_peer_connections() {
         let callbacks1 = create_mock_callbacks();
         let callbacks2 = create_mock_callbacks();
@@ -375,8 +360,8 @@ mod tests {
         let guest_result = create_guest_peer_connection(mock_offer, guest_callbacks).await;
 
         match guest_result {
-            Ok(_) => assert!(true),
-            Err(_) => assert!(true), // expected in test environment
+            Ok(_) => {}
+            Err(_) => {} // expected in test environment
         }
     }
 
@@ -419,16 +404,5 @@ mod tests {
         for result in results {
             assert_eq!(result, first_result);
         }
-    }
-
-    #[wasm_bindgen_test]
-    fn test_memory_safety_with_dropped_callbacks() {
-        let callbacks = create_mock_callbacks();
-        let _peer = create_host_peer_connection(callbacks);
-
-        // the callbacks are now owned by the peer connection
-        // this tests that we don't have use-after-free issues
-        // just verify it doesn't panic
-        assert!(true);
     }
 }

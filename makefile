@@ -5,6 +5,8 @@ build:
 
 .PHONY: fmt
 fmt:
+	cargo check
+	cargo clippy --fix --allow-dirty --allow-staged
 	cargo fmt -- --config max_width=250
 
 .PHONY: test

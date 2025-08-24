@@ -130,6 +130,7 @@ fn extract_candidates(sdp: &str) -> Result<Vec<Vec<String>>, String> {
 }
 
 #[cfg(test)]
+#[allow(dead_code, unused_variables, unused_imports)]
 mod tests {
     use super::*;
 
@@ -223,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_decompress_wrong_part_count() {
-        let parts = vec!["a", "b", "c"];
+        let parts = ["a", "b", "c"];
         let data = parts.join("|");
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
         encoder.write_all(data.as_bytes()).unwrap();

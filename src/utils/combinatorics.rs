@@ -36,6 +36,7 @@ impl<T> Kestrel for T {
 }
 
 #[cfg(test)]
+#[allow(dead_code, unused_variables, unused_imports)]
 mod tests {
     use super::*;
     use std::cell::RefCell;

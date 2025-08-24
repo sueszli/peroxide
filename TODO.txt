@@ -1,0 +1,7 @@
+- get rid of short unnecessary functions in src/dom.rs that aren't longer than their parent
+
+- drop unnecessary comments in lib.rs
+
+- use dark mode in game
+- use simple 8bit background music
+- refactor

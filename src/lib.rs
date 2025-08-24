@@ -12,7 +12,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
 use web_sys::*;
 
-use utils::combinatorics::{Kestrel, Thrush};
+use utils::combinatorics::Thrush;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Particle {
@@ -173,50 +173,35 @@ const PONG_HTML: &str = r#"
 "#;
 
 pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is_host: bool, game_state: Rc<RefCell<GameState>>) {
-    dom::document().body().unwrap().set_inner_html(PONG_HTML);
+    dom::set_inner_html(&dom::document().body().unwrap(), PONG_HTML);
 
-    let canvas = dom::document().get_element_by_id("game").unwrap().dyn_into::<HtmlCanvasElement>().unwrap();
+    let canvas: HtmlCanvasElement = dom::get_element_by_id("game").unwrap();
 
-    let context = canvas.get_context("2d").unwrap().unwrap().dyn_into::<CanvasRenderingContext2d>().unwrap();
+    let context = dom::get_canvas_context(&canvas).unwrap();
 
     // Audio is now handled per-call
 
     // Setup canvas scaling
-    let window = web_sys::window().unwrap();
-    let device_pixel_ratio = window.device_pixel_ratio();
-    let display_width = (canvas.client_width() as f64 * device_pixel_ratio) as u32;
-    let display_height = (canvas.client_height() as f64 * device_pixel_ratio) as u32;
-
-    canvas.set_width(display_width);
-    canvas.set_height(display_height);
-
-    context.scale(device_pixel_ratio, device_pixel_ratio).unwrap();
-    context.set_image_smoothing_enabled(false);
+    dom::setup_canvas_scaling(&canvas, &context);
 
     let game_state_clone = game_state.clone();
 
-    let document = dom::document();
     let key_state = Rc::new(RefCell::new(std::collections::HashSet::new()));
 
-    document.body().unwrap().pipe(|body| {
+    dom::document().body().unwrap().pipe(|body| {
         let key_state_down = key_state.clone();
-        let keydown_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+        dom::onkeydown(&body, move |event: KeyboardEvent| {
             key_state_down.borrow_mut().insert(event.key());
-        }) as Box<dyn FnMut(_)>);
-
-        body.add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref()).unwrap();
-        keydown_closure.forget();
+        });
 
         let key_state_up = key_state.clone();
-        let keyup_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+        dom::onkeyup(&body, move |event: KeyboardEvent| {
             key_state_up.borrow_mut().remove(&event.key());
-        }) as Box<dyn FnMut(_)>);
-
-        body.add_event_listener_with_callback("keyup", keyup_closure.as_ref().unchecked_ref()).unwrap();
-        keyup_closure.forget();
+        });
     });
 
-    let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
+    type GameLoopHandle = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
+    let f: GameLoopHandle = Rc::new(RefCell::new(None));
     let g = f.clone();
 
     *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
@@ -230,7 +215,7 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
             if keys.contains("ArrowDown") {
                 state.player_1_y += 8.0;
             }
-            state.player_1_y = state.player_1_y.max(0.0).min(500.0);
+            state.player_1_y = state.player_1_y.clamp(0.0, 500.0);
 
             // Ball physics
             state.ball_x += state.ball_vx;
@@ -249,10 +234,8 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
             // Paddle collision
             let paddle_collision = if state.ball_x <= 25.0 && state.ball_y >= state.player_1_y && state.ball_y <= state.player_1_y + 100.0 && state.ball_vx < 0.0 {
                 true
-            } else if state.ball_x >= 775.0 && state.ball_y >= state.player_2_y && state.ball_y <= state.player_2_y + 100.0 && state.ball_vx > 0.0 {
-                true
             } else {
-                false
+                state.ball_x >= 775.0 && state.ball_y >= state.player_2_y && state.ball_y <= state.player_2_y + 100.0 && state.ball_vx > 0.0
             };
 
             if paddle_collision {
@@ -293,7 +276,7 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
             if keys.contains("ArrowDown") {
                 state.player_2_y += 8.0;
             }
-            state.player_2_y = state.player_2_y.max(0.0).min(500.0);
+            state.player_2_y = state.player_2_y.clamp(0.0, 500.0);
 
             if let Some(con) = &*peer_connection.borrow() {
                 let msg = serde_json::to_string(&*state).unwrap();
@@ -307,11 +290,11 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
 
         // Apply screen shake
         if state.shake_intensity > 0.0 {
-            let game_elem = dom::document().get_element_by_id("game-container").unwrap();
-            let _ = game_elem.set_attribute("style", &format!("transform: translate({}px, {}px);", state.shake_x, state.shake_y));
+            let game_elem: Element = dom::get_element_by_id("game-container").unwrap();
+            dom::set_attribute(&game_elem, "style", &format!("transform: translate({}px, {}px);", state.shake_x, state.shake_y));
         } else {
-            let game_elem = dom::document().get_element_by_id("game-container").unwrap();
-            let _ = game_elem.set_attribute("style", "transform: translate(0px, 0px);");
+            let game_elem: Element = dom::get_element_by_id("game-container").unwrap();
+            dom::set_attribute(&game_elem, "style", "transform: translate(0px, 0px);");
         }
 
         // Pixel-perfect drawing
@@ -339,18 +322,18 @@ pub fn render_game(peer_connection: Rc<RefCell<Option<p2p::PeerConnection>>>, is
 
         // Update score display
         state.score_1.to_string().pipe(|score_text| {
-            dom::document().get_element_by_id("player1-score").unwrap().tap(|elem| elem.set_text_content(Some(&score_text)));
+            let elem: Element = dom::get_element_by_id("player1-score").unwrap();
+            dom::set_text_content(&elem, &score_text);
         });
         state.score_2.to_string().pipe(|score_text| {
-            dom::document().get_element_by_id("player2-score").unwrap().tap(|elem| elem.set_text_content(Some(&score_text)));
+            let elem: Element = dom::get_element_by_id("player2-score").unwrap();
+            dom::set_text_content(&elem, &score_text);
         });
 
-        let window = web_sys::window().unwrap();
-        window.request_animation_frame(f.borrow().as_ref().unwrap().as_ref().unchecked_ref()).unwrap();
+        dom::window().request_animation_frame(f.borrow().as_ref().unwrap().as_ref().unchecked_ref()).unwrap();
     }) as Box<dyn FnMut()>));
 
-    let window = web_sys::window().unwrap();
-    window.request_animation_frame(g.borrow().as_ref().unwrap().as_ref().unchecked_ref()).unwrap();
+    dom::window().request_animation_frame(g.borrow().as_ref().unwrap().as_ref().unchecked_ref()).unwrap();
 }
 
 #[wasm_bindgen(start)]

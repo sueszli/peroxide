@@ -1,18 +1,16 @@
-live demo: https://sueszli.github.io/peroxide/
-
-peroxide enables seamless peer-to-peer communication over the web, harnessing the power of Rust and WebRTC for low latency and high performance.
-
-      O-O-H
-     //
-Cl--{/
-     \
-      \_____
-      / --- \
-     /       \ 
-     \\     //
-      \_____/
+        O-O-H
+       //
+  Cl--{/
+       \
+        \_____
+        / --- \
+       /       \ 
+       \\     //
+        \_____/
 
 per·​ox·​ide (noun):
 
 - a chemical compound with two oxygen atoms linked by a covalent bond
 - a fusion of peer (P2P via WebRTC) and oxide (WebAssembly compiled from Rust)
+
+live demo: https://sueszli.github.io/peroxide/

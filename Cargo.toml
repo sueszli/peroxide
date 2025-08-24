@@ -12,7 +12,9 @@ console_error_panic_hook = "0.1.7"
 flate2 = "1.1.0"
 futures = "0.3.31"
 js-sys = "0.3.77"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
 wasm-bindgen-test = "0.3.50"
-web-sys = { version = "0.3.77", features = ["console", "Window", "Document", "Element", "HtmlButtonElement", "HtmlDivElement", "HtmlInputElement", "HtmlTextAreaElement", "MessageEvent", "RtcConfiguration", "RtcDataChannel", "RtcDataChannelEvent", "RtcIceCandidate", "RtcPeerConnection", "RtcPeerConnectionIceEvent", "RtcSessionDescriptionInit", "MouseEvent", "HtmlElement", "Node", "HtmlHeadElement", "RtcDataChannelState", "RtcIceServer", "RtcIceConnectionState", "RtcSessionDescription", "RtcPeerConnectionState", "RtcDataChannelInit", "NodeList", "HtmlCollection", "KeyboardEvent" ] }
+web-sys = { version = "0.3.77", features = ["console", "Window", "Document", "Element", "HtmlButtonElement", "HtmlDivElement", "HtmlInputElement", "HtmlTextAreaElement", "MessageEvent", "RtcConfiguration", "RtcDataChannel", "RtcDataChannelEvent", "RtcIceCandidate", "RtcPeerConnection", "RtcPeerConnectionIceEvent", "RtcSessionDescriptionInit", "MouseEvent", "HtmlElement", "Node", "HtmlHeadElement", "RtcDataChannelState", "RtcIceServer", "RtcIceConnectionState", "RtcSessionDescription", "RtcPeerConnectionState", "RtcDataChannelInit", "NodeList", "HtmlCollection", "KeyboardEvent", "CanvasRenderingContext2d", "HtmlCanvasElement", "AudioContext", "OscillatorNode", "GainNode", "AudioDestinationNode", "AudioBuffer", "AudioBufferSourceNode", "AnalyserNode", "AudioNode", "BaseAudioContext", "AudioParam", "OscillatorType" ] }

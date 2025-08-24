@@ -3,11 +3,6 @@ build:
 	wasm-pack build --target web
 	live-server --port=8080 --entry-file=index.html
 
-.PHONY: build-release
-build-release:
-	wasm-pack build --release --target web
-	rm pkg/.gitignore
-
 .PHONY: fmt
 fmt:
 	cargo fmt -- --config max_width=250
@@ -26,3 +21,8 @@ test:
 		echo "Trying Chrome anyway (wasm-pack will download drivers if needed)..."; \
 		wasm-pack test --headless --chrome; \
 	fi
+
+.PHONY: release
+release:
+	wasm-pack build --release --target web
+	rm pkg/.gitignore

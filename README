@@ -15,4 +15,5 @@ per·​ox·​ide (noun):
 
 currently implements pong as a proof-of-concept.
 
-live demo: https://sueszli.github.io/peroxide/
+- live demo: https://sueszli.github.io/peroxide/
+- meaty bits: https://github.com/sueszli/peroxide/blob/main/src/p2p.rs
